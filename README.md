@@ -6,7 +6,7 @@ Alineado con los **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecos
 
 ---
 
-## 📋 Tabla de contenidos
+## Tabla de contenidos
 
 - [Descripción del dataset](#-descripción-del-dataset)
 - [Objetivos de análisis](#-objetivos-de-análisis)
