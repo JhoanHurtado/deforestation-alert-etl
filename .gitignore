@@ -1,0 +1,55 @@
+# ── Entorno virtual ──────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Variables de entorno y secretos ──────────────────────────
+.env
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ── Jupyter ──────────────────────────────────────────────────
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ── Datos grandes (CSVs) ─────────────────────────────────────
+data/csv/*.csv
+data/csv/*.json
+
+# ── macOS ────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── IDEs ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Documentos entrega (PDFs y Markdown de entrega) ──────────
+docs/Project*.pdf
+docs/Project*.md
+#docs/respuestas_entrega1.md
+#docs/opcionesanbalisis.md
+
+# ── Logs y temporales ────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+Thumbs.db
