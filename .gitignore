@@ -26,8 +26,8 @@ build/
 */.ipynb_checkpoints/
 
 # ── Datos grandes (CSVs) ─────────────────────────────────────
-data/csv/*.csv
-data/csv/*.json
+##data/csv/*.csv
+##data/csv/*.json
 
 # ── macOS ────────────────────────────────────────────────────
 .DS_Store
