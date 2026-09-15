@@ -8,13 +8,14 @@ Alineado con los **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecos
 
 ## Tabla de contenidos
 
-- [Descripción del dataset](#-descripción-del-dataset)
-- [Objetivos de análisis](#-objetivos-de-análisis)
-- [Arquitectura](#-arquitectura)
-- [Modelo de datos](#-modelo-de-datos)
-- [Stack tecnológico](#-stack-tecnológico)
-- [Estructura del proyecto](#-estructura-del-proyecto)
-- [Instalación y uso](#-instalación-y-uso)
+- [Descripción del dataset](#descripción-del-dataset)
+- [Objetivos de análisis](#objetivos-de-análisis)
+- [Modelo de datos](#modelo-de-datos-star-schema)
+- [Stack tecnológico](#stack-tecnológico)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Instalación y uso](#instalación-y-uso)
+- [Documentación](#documentación)
+- [Alineación con los ODS](#alineación-con-los-ods)
 
 ---
 
@@ -97,11 +98,15 @@ deforestation-alert-etl/
 │   └── results/                # Figuras generadas por el notebook
 │       ├── fig1_alertas_anuales_por_pais.png
 │       ├── fig2_estacionalidad_por_pais.png
-│       └── ...
+│       ├── fig3_drivers_bolivia.png
+│       ├── fig4_drivers_colombia.png
+│       ├── fig5_bosque_primario_vs_secundario.png
+│       ├── fig6_densidad_cobertura.png
+│       └── fig7_alertas_por_departamento.png
 ├── docs/
-│   ├── architecture.drawio     # Diagrama de arquitectura editable
-│   ├── diagrama.png            # Diagrama exportado
-│   └── setup.md                # Instrucciones de configuración
+│   ├── architecture.drawio          # Diagrama de arquitectura editable
+│   ├── diagrama.png                 # Diagrama exportado
+│   ├── setup.md                     # Instrucciones de configuración del entorno
 ├── notebooks/
 │   └── etl_eda.ipynb           # Notebook principal: ETL + EDA + visualizaciones
 ├── scripts/
@@ -158,6 +163,8 @@ python scripts/gfw_signup.py
 # Descargar alertas BOL y COL (~95 MB, puede tardar varias horas o dias)
 python scripts/download_dataset.py
 ```
+
+> Para instrucciones detalladas de configuración ver [docs/setup.md](docs/setup.md).
 
 ### 6. Ejecutar el notebook
 
