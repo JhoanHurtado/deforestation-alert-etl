@@ -200,9 +200,9 @@ python scripts/gfw_signup.py
 | Orden | Notebook | Propósito |
 |-------|----------|-----------|
 | 1 | `01_eda_gfw.ipynb` | EDA del CSV raw GFW. §1-4: estructura, calidad, distribuciones. §5: tasas de cambio temporal. §6: patrones espaciales (hexbin, drivers). §7: causalidad con indicadores económicos. §8: proximidad a centros poblados. |
-| 2 | `02_eda_worldbank.ipynb` | EDA indicadores económicos. Tendencias de PIB, tierra agrícola y población rural 2015–2024. Correlaciones entre indicadores y tendencias normalizadas. |
-| 3 | `03_eda_faostat.ipynb` | EDA producción agrícola. Evolución de soya, ganadería y palma. Composición (área apilada) y variación YoY por commodity. |
-| 4 | `04_eda_geonames.ipynb` | EDA localidades pobladas. Distribución geográfica, top-10 más poblados y densidad espacial (hexbin). |
+| 2 | `02_eda_worldbank.ipynb` | EDA indicadores económicos. §1-4: estructura, tendencias de PIB, tierra agrícola y población rural 2015–2024. **Análisis extendido:** correlaciones entre indicadores (heatmap) y tendencias normalizadas (base=100). |
+| 3 | `03_eda_faostat.ipynb` | EDA producción agrícola. §1-4: estructura, producción por cultivo y área cosechada. **Análisis extendido:** composición de producción (área apilada) y variación YoY por commodity. |
+| 4 | `04_eda_geonames.ipynb` | EDA localidades pobladas. §1-5: estructura, distribución geográfica, población, top localidades. **Análisis extendido:** top-10 más poblados por país y densidad espacial (hexbin). |
 | 5 | `05_etl_pipeline.ipynb` | **Pipeline completo:** carga las 4 fuentes → transforma → merge → migra al star schema → carga incremental → EDA desde DB → visualizaciones integradas. |
 
 > `etl_eda.ipynb` es el notebook original de la primera entrega. No se modifica.
