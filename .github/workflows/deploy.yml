@@ -1,0 +1,96 @@
+name: Deploy to Lightsail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - "requirements.txt"
+      - ".env.example"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy scripts to Lightsail
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            PROJECT_DIR="$HOME/deforestation-alert-etl"
+            VENV_DIR="$PROJECT_DIR/venv"
+            PYTHON="$VENV_DIR/bin/python"
+
+            echo "── Pulling latest code ──"
+            cd "$PROJECT_DIR"
+            git pull origin main
+
+            echo "── Creating venv if needed ──"
+            if [ ! -f "$PYTHON" ]; then
+              python3 -m venv "$VENV_DIR"
+            fi
+
+            echo "── Installing dependencies ──"
+            "$VENV_DIR/bin/pip" install --quiet --upgrade pip
+            "$VENV_DIR/bin/pip" install --quiet -r requirements.txt
+
+            echo "── Writing .env from secrets ──"
+            cat > "$PROJECT_DIR/.env" << 'ENVEOF'
+            GFW_API_KEY=${{ secrets.GFW_API_KEY }}
+            PG_USER=${{ secrets.PG_USER }}
+            PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+            PG_HOST=${{ secrets.PG_HOST }}
+            PG_PORT=${{ secrets.PG_PORT }}
+            PG_DB=${{ secrets.PG_DB }}
+            S3_BUCKET=${{ secrets.S3_BUCKET }}
+            S3_PREFIX=${{ secrets.S3_PREFIX }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION=${{ secrets.AWS_REGION }}
+            DATA_PROXY_URL=${{ secrets.DATA_PROXY_URL }}
+            ENVEOF
+
+            echo "── Installing cron job ──"
+            CRON_CMD="0 6 * * * $PYTHON $PROJECT_DIR/scripts/batch_download.py >> $HOME/logs/batch.log 2>&1"
+            mkdir -p "$HOME/logs"
+            # Add cron only if not already present
+            ( crontab -l 2>/dev/null | grep -v "batch_download.py"; echo "$CRON_CMD" ) | crontab -
+
+            echo "✅ Deploy complete"
+
+  verify:
+    name: Verify deployment
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+      - name: Check scripts are executable
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: 22
+          script: |
+            PROJECT_DIR="$HOME/deforestation-alert-etl"
+            PYTHON="$PROJECT_DIR/venv/bin/python"
+
+            echo "── Python version ──"
+            "$PYTHON" --version
+
+            echo "── Checking imports ──"
+            "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy; print('All imports OK')"
+
+            echo "── Cron jobs ──"
+            crontab -l | grep batch_download || echo "No cron found"

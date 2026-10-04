@@ -25,9 +25,12 @@ build/
 .ipynb_checkpoints/
 */.ipynb_checkpoints/
 
-# ── Datos grandes (CSVs) ─────────────────────────────────────
-##data/csv/*.csv
-##data/csv/*.json
+# ── Datos grandes — NO subir al repo ─────────────────────────
+#data/csv/*.csv
+#data/csv/*.json
+#data/external/
+data/logs/
+logs/
 
 # ── macOS ────────────────────────────────────────────────────
 .DS_Store
@@ -42,11 +45,13 @@ build/
 *.swo
 *~
 
-# ── Documentos entrega (PDFs y Markdown de entrega) ──────────
+# ── Documentos de entrega (PDFs) ─────────────────────────────
 docs/Project*.pdf
-docs/Project*.md
-#docs/respuestas_entrega1.md
-#docs/opcionesanbalisis.md
+
+# ── GitHub Actions — SI subir ────────────────────────────────
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 
 # ── Logs y temporales ────────────────────────────────────────
 *.log
