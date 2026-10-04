@@ -1,3 +1,35 @@
+## Datasets ya disponibles en el proyecto
+
+Estos datasets ya han sido descargados y están listos para usarse. No requieren pasos adicionales si `DATA_PROXY_URL` está configurado en `.env` (los notebooks los descargarán automáticamente).
+
+| Dataset | Ruta local | Contenido | Análisis que habilita |
+|---------|------------|-----------|----------------------|
+| GFW Alertas (Bolivia) | `data/csv/bol_alerts_*.csv` | ~750k filas de alertas de deforestación 2022–2026 con lat/lon, driver, adm1, cobertura forestal | EDA temporal, espacial, causalidad, distancias |
+| GFW Alertas (Colombia) | `data/csv/col_alerts_*.csv` | ~800k filas de alertas de deforestación 2022–2026 con lat/lon, driver, adm1, cobertura forestal | EDA temporal, espacial, causalidad, distancias |
+| World Bank Indicators | `data/external/worldbank/worldbank_indicators.csv` | PIB, población rural, tierra agrícola, exportaciones agrícolas (BOL+COL, 2015–2024) | Causalidad preliminar, correlaciones económicas |
+| FAO FAOSTAT Production | `data/external/faostat/faostat_production.csv` | Producción de soya, ganadería, caña, palma (BOL+COL, 2015–2024) | Composición agrícola, variación YoY |
+| GeoNames Places | `data/external/geonames/geonames_places.csv` | ~61k localidades pobladas (BOL+COL) con lat/lon y población | Proximidad a centros poblados, densidad espacial |
+
+---
+
+## Estado de implementación de análisis
+
+| Análisis | Datos requeridos | Estado | Notebook |
+|----------|-----------------|--------|----------|
+| Tasas de cambio | GFW CSV | ✅ Implementado | `01_eda_gfw.ipynb` §5 |
+| Patrones espaciales | GFW CSV | ✅ Implementado | `01_eda_gfw.ipynb` §6 |
+| Causalidad preliminar | GFW + WorldBank | ✅ Implementado | `01_eda_gfw.ipynb` §7 |
+| Proximidad a poblados | GFW + GeoNames | ✅ Implementado | `01_eda_gfw.ipynb` §8 |
+| Análisis extendido WorldBank | WorldBank | ✅ Implementado | `02_eda_worldbank.ipynb` |
+| Análisis extendido FAOSTAT | FAOSTAT | ✅ Implementado | `03_eda_faostat.ipynb` |
+| Análisis extendido GeoNames | GeoNames | ✅ Implementado | `04_eda_geonames.ipynb` |
+| Emisiones de carbono | GFW + Biomasa raster | ⏳ Pendiente (requiere datos biomasa) | — |
+| Fragmentación de hábitats | Hansen raster | ⏳ Pendiente (requiere GEE) | — |
+| Proximidad carreteras/ríos | OpenStreetMap | ⏳ Pendiente (requiere OSM) | — |
+| Impacto en cuencas | HydroSHEDS + CHIRPS | ⏳ Pendiente (requiere descarga adicional) | — |
+
+---
+
 # Datasets externos requeridos para análisis de cruce
 
 Cada sección indica el análisis que habilita, la fuente, el formato descargable y los pasos exactos.
