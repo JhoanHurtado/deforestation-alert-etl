@@ -52,6 +52,10 @@ jobs:
             fi
 
             echo "── Ensuring project directory and code ──"
+            if [ -d "$PROJECT_DIR" ]; then
+              sudo chown -R ubuntu:ubuntu "$PROJECT_DIR"
+            fi
+
             if [ ! -d "$PROJECT_DIR/.git" ]; then
               echo "Project directory does not exist. Cloning $REPO_URL ($BRANCH)..."
               git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR" || git clone "$REPO_URL" "$PROJECT_DIR"
