@@ -1,0 +1,55 @@
+name: Daily Batch Download (Lightsail)
+
+on:
+  schedule:
+    # 06:00 UTC diario — equivale a 01:00 COT (Colombia) / 02:00 BOT (Bolivia)
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_gfw:
+        description: "Omitir descarga GFW"
+        type: boolean
+        default: false
+      skip_upload:
+        description: "Omitir subida a S3"
+        type: boolean
+        default: false
+
+jobs:
+  batch:
+    name: Run batch_download.py on Lightsail
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger batch download via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          port: 22
+          command_timeout: 60m
+          script: |
+            set -e
+            PROJECT_DIR="$HOME/deforestation-alert-etl"
+            PYTHON="$PROJECT_DIR/venv/bin/python"
+            LOG="$HOME/logs/batch_$(date +%Y%m%d).log"
+            mkdir -p "$HOME/logs"
+
+            ARGS=""
+            if [ "${{ inputs.skip_gfw }}" = "true" ]; then ARGS="$ARGS --skip-gfw"; fi
+            if [ "${{ inputs.skip_upload }}" = "true" ]; then ARGS="$ARGS --skip-upload"; fi
+
+            echo "── Starting batch execution $(date) ──" | tee -a "$LOG"
+            cd "$PROJECT_DIR"
+            export AIRFLOW_HOME="$HOME/airflow"
+            export AIRFLOW__CORE__DAGS_FOLDER="$PROJECT_DIR/dags"
+
+            echo "── Triggering Airflow DAG or running batch script ──"
+            if "$PYTHON" -m airflow dags trigger deforestation_etl_dag 2>&1 | tee -a "$LOG"; then
+              echo "✅ Airflow DAG triggered successfully" | tee -a "$LOG"
+            else
+              echo "⚠️ Fallback: running batch_download.py directly" | tee -a "$LOG"
+              "$PYTHON" scripts/batch_download.py $ARGS 2>&1 | tee -a "$LOG"
+            fi
+            echo "── Done $(date) ──" | tee -a "$LOG"

@@ -27,7 +27,7 @@ from datetime import date, timedelta
 
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env")
+    load_dotenv(Path(__file__).parent.parent / ".env")
 except ImportError:
     pass
 
@@ -35,8 +35,8 @@ API_KEY  = os.getenv("GFW_API_KEY")
 BASE_URL = "https://data-api.globalforestwatch.org"
 DATASET  = "gfw_integrated_alerts"
 VERSION  = "latest"
-DATA_DIR = Path(__file__).parent / "data" / "csv"
-LOG_DIR  = Path(__file__).parent / "data" / "logs"
+DATA_DIR = Path(__file__).parent.parent / "data" / "csv"
+LOG_DIR  = Path(__file__).parent.parent / "data" / "logs"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -280,8 +280,22 @@ def resolve_range(country_code: str, args) -> tuple[str, str] | None:
             from_date = last + timedelta(days=1)
             log(f"   {country_code}: última fecha en CSV = {last}  →  descargando desde {from_date}")
         else:
-            log(f"   {country_code}: no hay CSV previo — se requiere --from YYYY-MM-DD")
-            return None
+            log(f"   {country_code}: no hay CSV previo localmente. Intentando descargar base desde el proxy S3...")
+            try:
+                import subprocess
+                fetch_script = Path(__file__).parent / "fetch_from_proxy.py"
+                if fetch_script.exists():
+                    subprocess.run([sys.executable, str(fetch_script), "--only", "gfw"], check=True)
+                    existing = find_existing_csv(country_code)
+                    last = last_date_in_csv(existing) if existing else None
+                    if last:
+                        from_date = last + timedelta(days=1)
+                        log(f"   {country_code}: CSV base obtenido desde proxy (última fecha: {last})")
+            except Exception as e:
+                log(f"   ⚠️ Error descargando base desde proxy: {e}")
+            if not last:
+                log(f"   {country_code}: no hay CSV previo — se omite descarga histórica pesada la primera vez (usar fetch_from_proxy.py o --from YYYY-MM-DD)")
+                return None
 
     if from_date > to_date:
         log(f"   {country_code}: ya está al día ({from_date} > {to_date}), nada que descargar")
