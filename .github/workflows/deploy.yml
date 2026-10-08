@@ -37,10 +37,18 @@ jobs:
             REPO_URL="https://github.com/${{ github.repository }}.git"
             BRANCH="${{ github.ref_name }}"
 
-            echo "── Ensuring system tools (git, python3-venv) ──"
-            if ! command -v git &> /dev/null || ! python3 -m venv --help &> /dev/null; then
-              echo "Installing basic system packages..."
-              sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv python3-pip
+            echo "── Ensuring Python and system dependencies ──"
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq git build-essential
+
+            if ! command -v python3 &> /dev/null; then
+              echo "Installing Python 3.12..."
+              sudo apt-get install -y -qq python3.12 python3.12-venv python3.12-dev python3-pip
+            else
+              PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+              echo "Detected Python version: $PY_VER. Installing corresponding python${PY_VER}-venv..."
+              sudo apt-get install -y -qq "python${PY_VER}-venv" "python${PY_VER}-dev" python3-pip python3-setuptools || \
+              sudo apt-get install -y -qq python3-venv python3-pip
             fi
 
             echo "── Ensuring project directory and code ──"
@@ -56,8 +64,10 @@ jobs:
               git pull origin "$BRANCH" || git pull origin main || true
             fi
 
-            echo "── Creating venv if needed ──"
+            echo "── Creating virtualenv if needed ──"
             if [ ! -f "$PYTHON" ]; then
+              echo "Recreating venv at $VENV_DIR..."
+              rm -rf "$VENV_DIR"
               python3 -m venv "$VENV_DIR"
             fi
 
