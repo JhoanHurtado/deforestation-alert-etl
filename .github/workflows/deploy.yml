@@ -178,6 +178,11 @@ jobs:
             sudo systemctl enable airflow-webserver airflow-scheduler
             sudo systemctl restart airflow-webserver airflow-scheduler
 
+            echo "── Registering & Unpausing DAGs in Airflow ──"
+            # Esperar a que el scheduler registre el DAG en la base de datos
+            "$PYTHON" -m airflow dags list 2>/dev/null || true
+            "$PYTHON" -m airflow dags unpause deforestation_etl_dag 2>/dev/null || true
+
             echo "── Installing cron job fallback ──"
             CRON_CMD="0 22 * * * $PYTHON $PROJECT_DIR/scripts/batch_download.py >> $HOME/logs/batch.log 2>&1"
             mkdir -p "$HOME/logs"
@@ -217,4 +222,7 @@ jobs:
 
             echo "── Checking Port 9179 Listening ──"
             sudo ss -tulpn | grep 9179 || echo "Waiting for port 9179 to bind..."
+
+            echo "── Airflow Loaded DAGs ──"
+            "$PYTHON" -m airflow dags list
 
