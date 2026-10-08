@@ -40,6 +40,7 @@ with DAG(
     start_date=datetime(2026, 1, 1),
     schedule="0 22 * * *",
     catchup=False,
+    max_active_runs=1,
     tags=["deforestation", "etl", "ods13", "ods15", "great_expectations"],
 ) as dag:
 
