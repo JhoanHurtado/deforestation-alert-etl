@@ -67,6 +67,16 @@ jobs:
             PIP="$VENV_DIR/bin/pip"
 
             echo "── Creating or repairing virtualenv if needed ──"
+            # Si el venv tiene residuos de airflow 3, recrearlo desde cero
+            if [ -x "$PYTHON" ]; then
+              if "$PYTHON" -c "import airflow; assert airflow.__version__.startswith('2')" 2>/dev/null; then
+                echo "Airflow 2.x already installed in virtualenv."
+              else
+                echo "Virtualenv contains incompatible Airflow 3 or is corrupted. Recreating cleanly..."
+                rm -rf "$VENV_DIR"
+              fi
+            fi
+
             if [ ! -x "$PYTHON" ] || [ ! -x "$PIP" ]; then
               echo "Virtualenv is missing or incomplete (pip not found). Recreating at $VENV_DIR..."
               rm -rf "$VENV_DIR"
@@ -78,8 +88,12 @@ jobs:
 
             echo "── Installing dependencies ──"
             "$PYTHON" -m pip install --quiet --upgrade pip
-            "$PYTHON" -m pip install --quiet -r requirements.txt
-            "$PYTHON" -m pip install --quiet "apache-airflow>=2.8.0,<3.0.0"
+            # Instalar airflow 2.8.4 con constraints oficiales para Python 3.12
+            PYTHON_VERSION="$($PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")"
+            CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.8.4/constraints-${PYTHON_VERSION}.txt"
+            "$PYTHON" -m pip install "apache-airflow==2.8.4" --constraint "$CONSTRAINT_URL" || \
+            "$PYTHON" -m pip install "apache-airflow>=2.8.0,<3.0.0"
+            "$PYTHON" -m pip install -r requirements.txt
 
             echo "── Writing .env from secrets ──"
             cat > "$PROJECT_DIR/.env" << 'ENVEOF'
@@ -193,6 +207,9 @@ jobs:
 
             echo "── Checking imports ──"
             "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy, airflow; print('All imports OK')"
+
+            echo "── Waiting 5s for services to stabilize ──"
+            sleep 5
 
             echo "── Checking Airflow Services ──"
             sudo systemctl is-active airflow-webserver && echo "airflow-webserver: ACTIVE" || echo "airflow-webserver: INACTIVE"
