@@ -24,6 +24,10 @@ echo "=================================================="
 
 mkdir -p "$AIRFLOW_HOME"
 
+# Configurar contraseña para SimpleAuthManager y Standalone
+echo '{"admin": "admin"}' > "$AIRFLOW_HOME/simple_auth_manager_passwords.json"
+echo "admin" > "$AIRFLOW_HOME/standalone_admin_password.txt"
+
 # Inicializar DB si no existe
 if [ ! -f "$AIRFLOW_HOME/airflow.db" ]; then
     echo "── Inicializando base de datos local SQLite ──"
@@ -53,3 +57,4 @@ echo "Pulsa Ctrl + C para detener."
 echo "=================================================="
 
 exec airflow standalone
+
