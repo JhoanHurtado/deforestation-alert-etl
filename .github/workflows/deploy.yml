@@ -5,13 +5,16 @@ on:
     branches: [main]
     paths:
       - "scripts/**"
+      - "dags/**"
+      - "notebooks/**"
       - "requirements.txt"
       - ".env.example"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy scripts to Lightsail
+    name: Deploy scripts and Airflow to Lightsail
     runs-on: ubuntu-latest
 
     steps:
@@ -61,21 +64,87 @@ jobs:
             DATA_PROXY_URL=${{ secrets.DATA_PROXY_URL }}
             ENVEOF
 
-            echo "── Installing cron job ──"
+            echo "── Configuring Apache Airflow (Port 9179) ──"
+            export AIRFLOW_HOME="$HOME/airflow"
+            export AIRFLOW__CORE__DAGS_FOLDER="$PROJECT_DIR/dags"
+            export AIRFLOW__CORE__LOAD_EXAMPLES="False"
+            export AIRFLOW__WEBSERVER__WEB_SERVER_PORT="9179"
+            mkdir -p "$AIRFLOW_HOME"
+
+            echo "── Running Airflow DB migrations ──"
+            "$PYTHON" -m airflow db migrate
+
+            echo "── Creating/Updating Airflow Admin User (Jhoan Hurtado) ──"
+            "$PYTHON" -m airflow users create \
+              --username admin \
+              --firstname Jhoan \
+              --lastname Hurtado \
+              --role Admin \
+              --email jhoanezequielh@gmail.com \
+              --password admin 2>/dev/null || \
+            "$PYTHON" -m airflow users reset-password \
+              --username admin \
+              --password admin 2>/dev/null || true
+
+            echo "── Setting up systemd services for Airflow ──"
+            sudo bash -c "cat > /etc/systemd/system/airflow-webserver.service" << 'UNITEOF'
+[Unit]
+Description=Airflow Webserver (Port 9179)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+Type=simple
+Environment="AIRFLOW_HOME=/home/ubuntu/airflow"
+Environment="AIRFLOW__CORE__DAGS_FOLDER=/home/ubuntu/deforestation-alert-etl/dags"
+Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
+ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow webserver -p 9179
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+            sudo bash -c "cat > /etc/systemd/system/airflow-scheduler.service" << 'UNITEOF'
+[Unit]
+Description=Airflow Scheduler
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+Type=simple
+Environment="AIRFLOW_HOME=/home/ubuntu/airflow"
+Environment="AIRFLOW__CORE__DAGS_FOLDER=/home/ubuntu/deforestation-alert-etl/dags"
+Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
+ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow scheduler
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+            sudo systemctl daemon-reload
+            sudo systemctl enable airflow-webserver airflow-scheduler
+            sudo systemctl restart airflow-webserver airflow-scheduler
+
+            echo "── Installing cron job fallback ──"
             CRON_CMD="0 6 * * * $PYTHON $PROJECT_DIR/scripts/batch_download.py >> $HOME/logs/batch.log 2>&1"
             mkdir -p "$HOME/logs"
-            # Add cron only if not already present
             ( crontab -l 2>/dev/null | grep -v "batch_download.py"; echo "$CRON_CMD" ) | crontab -
 
-            echo "✅ Deploy complete"
+            echo "✅ Deploy and Airflow setup complete"
 
   verify:
-    name: Verify deployment
+    name: Verify deployment and Airflow services
     runs-on: ubuntu-latest
     needs: deploy
 
     steps:
-      - name: Check scripts are executable
+      - name: Check scripts and Airflow services
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
@@ -90,7 +159,12 @@ jobs:
             "$PYTHON" --version
 
             echo "── Checking imports ──"
-            "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy; print('All imports OK')"
+            "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy, airflow; print('All imports OK')"
 
-            echo "── Cron jobs ──"
-            crontab -l | grep batch_download || echo "No cron found"
+            echo "── Checking Airflow Services ──"
+            sudo systemctl is-active airflow-webserver && echo "airflow-webserver: ACTIVE" || echo "airflow-webserver: INACTIVE"
+            sudo systemctl is-active airflow-scheduler && echo "airflow-scheduler: ACTIVE" || echo "airflow-scheduler: INACTIVE"
+
+            echo "── Checking Port 9179 Listening ──"
+            sudo ss -tulpn | grep 9179 || echo "Waiting for port 9179 to bind..."
+

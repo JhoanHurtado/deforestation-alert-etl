@@ -25,10 +25,14 @@ build/
 .ipynb_checkpoints/
 */.ipynb_checkpoints/
 
-# ── Datos grandes — NO subir al repo ─────────────────────────
-#data/csv/*.csv
-#data/csv/*.json
-#data/external/
+# ── Datos grandes — NO subir al repo (exclusión total de datasets) ──
+*.csv
+*.tsv
+*.parquet
+*.zip
+*.tar.gz
+data/csv/
+data/external/
 data/logs/
 logs/
 

@@ -171,46 +171,61 @@ python scripts/sync_alerts.py --country BOL  # solo un país
 
 ### Modelo de datos — Star Schema
 
-```
-┌─────────────────────┐     ┌─────────────────────┐
-│      dim_date       │     │    dim_location      │
-├─────────────────────┤     ├─────────────────────┤
-│ date_id        PK   │     │ location_id     PK   │
-│ date                │     │ country_code         │
-│ year                │     │ country_name         │
-│ month               │     │ adm1_code            │
-│ week                │     │ adm1_name            │
-│ month_name          │     └──────────┬──────────┘
-└──────────┬──────────┘                │
-           │                           │
-           │      ┌────────────────────┼──────────────────────┐
-           │      │                   │                       │
-           ▼      ▼                   ▼                       ▼
-     ┌─────────────────────────────────────────────────────────────┐
-     │                        fact_alerts                          │
-     ├─────────────────────────────────────────────────────────────┤
-     │ alert_id            PK (serial)                             │
-     │ date_id             FK → dim_date.date_id                   │
-     │ location_id         FK → dim_location.location_id           │
-     │ driver_id           FK → dim_driver.driver_id               │
-     │ land_cover_id       FK → dim_land_cover.land_cover_id       │
-     │ confidence_id       FK → dim_confidence.confidence_id       │
-     │ latitude                                                     │
-     │ longitude                                                    │
-     │ tree_cover_density_pct                                       │
-     │ is_primary_forest                                            │
-     │ protected_area_cat                                           │
-     │ is_soy_area                                                  │
-     └──────────────────────────────────────────────────────────────┘
-           ▲      ▲                   ▲
-           │      │                   │
-┌──────────┴──┐  ┌┴────────────────┐  ┌┴──────────────────┐
-│  dim_driver │  │ dim_land_cover  │  │  dim_confidence   │
-├─────────────┤  ├─────────────────┤  ├───────────────────┤
-│ driver_id PK│  │ land_cover_id PK│  │ confidence_id  PK │
-│ driver_name │  │ land_cover_class│  │ confidence        │
-└─────────────┘  └─────────────────┘  │ is_high_confidence│
-                                       └───────────────────┘
+```mermaid
+erDiagram
+    dim_date {
+        int date_id PK
+        date date
+        int year
+        int month
+        int week
+        string month_name
+    }
+
+    dim_location {
+        int location_id PK
+        string country_code
+        string country_name
+        string adm1_code
+        string adm1_name
+    }
+
+    dim_driver {
+        int driver_id PK
+        string driver_name
+    }
+
+    dim_land_cover {
+        int land_cover_id PK
+        string land_cover_class
+    }
+
+    dim_confidence {
+        int confidence_id PK
+        string confidence
+        boolean is_high_confidence
+    }
+
+    fact_alerts {
+        int alert_id PK
+        int date_id FK
+        int location_id FK
+        int driver_id FK
+        int land_cover_id FK
+        int confidence_id FK
+        float latitude
+        float longitude
+        float tree_cover_density_pct
+        boolean is_primary_forest
+        string protected_area_cat
+        boolean is_soy_area
+    }
+
+    fact_alerts }o--|| dim_date : "date_id"
+    fact_alerts }o--|| dim_location : "location_id"
+    fact_alerts }o--|| dim_driver : "driver_id"
+    fact_alerts }o--|| dim_land_cover : "land_cover_id"
+    fact_alerts }o--|| dim_confidence : "confidence_id"
 ```
 
 **Justificación del stack:**

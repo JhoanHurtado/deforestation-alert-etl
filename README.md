@@ -10,7 +10,9 @@ Alineado con **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecosiste
 ## Tabla de contenidos
 
 - [Arquitectura](#arquitectura)
-- [Fuentes de datos](#fuentes-de-datos)
+- [Orquestación con Apache Airflow](#orquestación-con-apache-airflow)
+- [Control de Calidad (Great Expectations)](#control-de-calidad-great-expectations)
+- [Fuentes de datos y Storage S3](#fuentes-de-datos-y-storage-s3)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Scripts — qué hace cada uno](#scripts--qué-hace-cada-uno)
 - [Notebooks — orden de ejecución](#notebooks--orden-de-ejecución)
@@ -25,50 +27,156 @@ Alineado con **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecosiste
 
 ## Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  DATA SOURCES          LIGHTSAIL (batch)        AWS S3 (raw storage)   │
-│                                                                         │
-│  GFW API ──────────→  sync_alerts.py ──────┐                           │
-│  World Bank API ───→  download_worldbank.py ├──→ upload_to_s3.py ──→  │
-│  FAO FAOSTAT ──────→  download_faostat.py  ├──→  raw/gfw/             │
-│  GeoNames dump ────→  download_geonames.py ┘     raw/external/        │
-│                       (orquestado por                                   │
-│                        batch_download.py)         ↓ Reverse Proxy      │
-└───────────────────────────────────────────────────┼─────────────────────┘
-                                                    │
-                                          fetch_from_proxy.py
-                                                    │
-┌───────────────────────────────────────────────────▼─────────────────────┐
-│  LOCAL — Jupyter Notebooks                                               │
-│                                                                         │
-│  01_eda_gfw.ipynb        EDA raw GFW → decisiones de transformación     │
-│  02_eda_worldbank.ipynb  EDA indicadores económicos                     │
-│  03_eda_faostat.ipynb    EDA producción agrícola                        │
-│  04_eda_geonames.ipynb   EDA localidades pobladas                       │
-│           ↓                                                             │
-│  05_etl_pipeline.ipynb   ETL unificado + carga incremental              │
-│           ↓                                                             │
-│  PostgreSQL (Star Schema) → Visualizaciones                             │
-└─────────────────────────────────────────────────────────────────────────┘
+![Arquitectura AWS - Deforestation Alert ETL](docs/img/architecture.png)
 
-GitHub Actions:
-  deploy.yml  → push a main → SSH → actualiza scripts + cron en Lightsail
-  batch.yml   → cron 06:00 UTC → SSH → ejecuta batch_download.py
-```
+> El diagrama editable en formato draw.io (estilo AWS Architecture) está disponible en [`docs/architecture.drawio`](docs/architecture.drawio).
 
-El diagrama editable está en [`docs/architecture.drawio`](docs/architecture.drawio).
+### Diagrama de Flujo del Pipeline (Mermaid)
+
+```mermaid
+flowchart TD
+    %% Subgrafo Fuentes de Datos
+    subgraph SOURCES["🌐 Fuentes de Datos Externas"]
+        direction TB
+        S1["Global Forest Watch API<br/><i>Alertas Deforestación 2022-2026</i>"]
+        S2["World Bank Open Data API<br/><i>PIB, Tierra Agrícola, Población Rural</i>"]
+        S3["FAO FAOSTAT Bulk CSV<br/><i>Producción Agropecuaria y Soya</i>"]
+        S4["GeoNames Data Dump<br/><i>Localidades Pobladas BOL + COL</i>"]
+        S5["Wikipedia / WDPA Scraping<br/><i>Parques y Reservas Naturales</i>"]
+    end
+
+    %% Subgrafo AWS Cloud
+    subgraph AWS["☁️ Amazon Web Services (AWS Cloud)"]
+        direction TB
+        
+        subgraph LIGHTSAIL["🖥️ AWS Lightsail Instance (Ubuntu 22.04)"]
+            direction TB
+            NGINX["Nginx Reverse Proxy<br/><code>:80 / :443</code>"]
+            
+            subgraph AIRFLOW["🌪️ Apache Airflow 2.x (:9179)"]
+                DAG["DAG: deforestation_etl_dag<br/><i>Schedule Diario: 22:00 (10:00 PM)</i>"]
+                SCHED["Airflow Scheduler (systemd)"]
+                WEB["Airflow Webserver (puerto 9179)"]
+            end
+            
+            subgraph BATCH["⚙️ Scripts de Extracción y Orquestación"]
+                SCR_SYNC["sync_alerts.py<br/><i>(Incremental GFW)</i>"]
+                SCR_EXT["download_*.py<br/><i>(WB, FAO, GeoNames)</i>"]
+                SCR_SCRAPE["scrape_protected_areas.py"]
+                SCR_UP["upload_to_s3.py<br/><i>(Prefijo deforestacion-alert-etl/)</i>"]
+            end
+        end
+
+        subgraph S3["🪣 Amazon Simple Storage Service (Amazon S3)"]
+            BUCKET["S3 Bucket: deforestacion-alert-etl/<br/>├── gfw/*.csv<br/>└── external/*/*.csv"]
+        end
+    end
+
+    %% Subgrafo CI/CD
+    subgraph CICD["🚀 GitHub Actions CI/CD"]
+        W_DEPLOY["deploy.yml<br/><i>Push to main → Auto-provision Airflow & Nginx</i>"]
+        W_BATCH["batch.yml<br/><i>Cron 22:00 → Trigger Airflow DAG</i>"]
+    end
+
+    %% Subgrafo Proxy Público
+    PROXY["🔀 HTTPS Proxy Público<br/><b>https://docs.jhoanhurtado.com/deforestacion-alert-etl/...</b>"]
+
+    %% Subgrafo Local / Analytics
+    subgraph LOCAL["💻 Entorno Analítico Local / Workstation"]
+        direction TB
+        FETCH["fetch_from_proxy.py<br/><i>Descarga rápida de línea base</i>"]
+        GX["🛡️ Great Expectations<br/><i>validate_quality.py (Validación de calidad)</i>"]
+        
+        subgraph NOTEBOOKS["📓 Jupyter Notebooks"]
+            NB_EDA["01 - 04 EDA Extendidos<br/><i>(GFW, World Bank, FAO, GeoNames)</i>"]
+            NB_ETL["05_etl_pipeline.ipynb<br/><i>ETL Unificado + 8 Análisis Clave</i>"]
+        end
+
+        subgraph DWH["🐘 Data Warehouse (PostgreSQL)"]
+            STAR["Star Schema Dimensional<br/><i>fact_alerts + 7 dimensiones</i>"]
+        end
+
+        subgraph VIZ["📊 Visualizaciones & ODS"]
+            CHARTS["Dashboards, Mapas Espaciales,<br/>Hotspots, Emisiones CO2 (IPCC Tier 1)"]
+        end
+    end
+
+    %% Conexiones de orquestación y flujo de datos
+    W_DEPLOY -- "SSH Deploy" --> LIGHTSAIL
+    W_BATCH -- "Trigger DAG" --> DAG
+    
+    SOURCES --> BATCH
+    DAG --> BATCH
+    BATCH --> SCR_UP --> BUCKET
+    
+    BUCKET --> PROXY
+    PROXY --> FETCH
+    FETCH --> GX
+    GX -- "Validación Aprobada" --> NB_ETL
+    NB_EDA -.-> NB_ETL
+    NB_ETL --> STAR
+    STAR --> CHARTS
+
+    NGINX -- "Subdominio airflow.jhoanhurtado.com" --> WEB
+```
 
 ---
 
-## Fuentes de datos
+## Orquestación con Apache Airflow
 
-| # | Fuente | Tipo | Contenido | Script |
-|---|--------|------|-----------|--------|
-| 1 | [Global Forest Watch](https://data-api.globalforestwatch.org) | API REST | Alertas de deforestación BOL+COL 2022–2026 (~1.5M filas) | `sync_alerts.py` |
-| 2 | [World Bank Open Data](https://data.worldbank.org) | API REST | PIB, población rural, tierra agrícola, exportaciones agrícolas | `download_worldbank.py` |
-| 3 | [FAO FAOSTAT](https://www.fao.org/faostat) | Bulk CSV | Producción de soya, ganadería, caña, palma (2015–2024) | `download_faostat.py` |
-| 4 | [GeoNames](https://download.geonames.org/export/dump/) | ZIP/CSV | ~61k localidades pobladas BOL+COL con coordenadas | `download_geonames.py` |
+El pipeline está orquestado mediante **Apache Airflow**, ejecutándose automáticamente todas las noches a las **22:00 (10:00 PM)** (`0 22 * * *`).
+
+### Visualización del DAG (`deforestation_etl_dag`)
+
+![Apache Airflow DAG](docs/img/airflow_dag.png)
+
+> **Ruta de imagen git compatible:** [`docs/img/airflow_dag.png`](docs/img/airflow_dag.png) *(puedes actualizar esta captura directamente sustituyendo dicho archivo en el repositorio)*.
+
+### Acceso a la interfaz Web de Airflow
+- **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` (o alternativamente `https://airflow-etl.jhoanhurtado.com`) redirigido mediante Nginx reverse proxy al puerto local **9179**.
+- **Acceso directo por IP/puerto:** `http://<LIGHTSAIL_IP>:9179`
+- **Credenciales automáticas:**
+  - **Usuario:** `admin`
+  - **Contraseña:** `admin`
+  - **Nombre:** Jhoan Hurtado
+  - **Email:** `jhoanezequielh@gmail.com`
+  - **Rol:** `Admin`
+
+### Pipeline de Tareas en el DAG
+1. `sync_gfw_alerts`: Descarga incremental de alertas GFW (omite descarga masiva la primera vez, verificando únicamente días nuevos desde la última ejecución).
+2. `download_worldbank`, `download_faostat`, `download_geonames`, `scrape_protected_areas`: Extracciones paralelas de fuentes externas.
+3. `upload_to_s3`: Sube los CSVs crudos con nombres reales al bucket S3 bajo el prefijo `deforestacion-alert-etl/`.
+4. `validate_data_quality`: Suite de **Great Expectations** que valida tipos, completitud y rangos espaciales. Si falla la calidad, detiene la carga a base de datos.
+5. `run_etl_pipeline`: Ejecuta la transformación unificada y carga incremental a PostgreSQL (Star Schema).
+
+---
+
+## Control de Calidad (Great Expectations)
+
+Para cumplir con los criterios de validación de calidad de datos exigidos para la segunda entrega, se integra el script [`scripts/validate_quality.py`](scripts/validate_quality.py) respaldado por **Great Expectations (GX)**:
+- **Alertas GFW:** Valida columnas mandatorias (`latitude`, `longitude`, `alert__date`, `confidence__cat`), no nulidad en coordenadas y rangos geográficos válidos (latitud en `[-23, 14]`, longitud en `[-80, -57]`).
+- **World Bank:** Valida presencia de columnas clave, códigos ISO (`BOL`, `COL`) y rango temporal (`year >= 2010`).
+- **GeoNames:** Valida completitud de nombres de localidades y rangos de coordenadas válidos.
+- **Áreas Protegidas:** Valida nombres y categorías de manejo IUCN.
+
+---
+
+## Fuentes de datos y Storage S3
+
+Todos los datasets están **100% excluidos del repositorio Git** mediante `.gitignore`. Deben residir en el bucket S3 bajo el prefijo `deforestacion-alert-etl/` para ser consumidos tanto por los notebooks analíticos como por el pipeline de Lightsail.
+
+### Mapeo de Datasets, Rutas S3 y URLs del Proxy
+
+| # | Dataset / Contenido | Ruta en S3 (`s3://<bucket>/`) | URL Proxy de Descarga (`https://docs.jhoanhurtado.com/`) | Ruta Local Destino |
+|---|---------------------|-------------------------------|----------------------------------------------------------|--------------------|
+| 1 | **GFW Alertas Bolivia (2022–2026)** | `deforestacion-alert-etl/gfw/bol_alerts_2022-01-01_2026-07-31.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/gfw/bol_alerts_2022-01-01_2026-07-31.csv` | `data/csv/bol_alerts_2022-01-01_2026-07-31.csv` |
+| 2 | **GFW Alertas Colombia (2022–2026)** | `deforestacion-alert-etl/gfw/col_alerts_2022-01-01_2026-07-31.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/gfw/col_alerts_2022-01-01_2026-07-31.csv` | `data/csv/col_alerts_2022-01-01_2026-07-31.csv` |
+| 3 | **World Bank Indicadores Económicos** | `deforestacion-alert-etl/external/worldbank/worldbank_indicators.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/worldbank/worldbank_indicators.csv` | `data/external/worldbank/worldbank_indicators.csv` |
+| 4 | **FAOSTAT Producción Agropecuaria** | `deforestacion-alert-etl/external/faostat/faostat_production.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/faostat/faostat_production.csv` | `data/external/faostat/faostat_production.csv` |
+| 5 | **GeoNames Localidades Pobladas** | `deforestacion-alert-etl/external/geonames/geonames_places.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/geonames/geonames_places.csv` | `data/external/geonames/geonames_places.csv` |
+| 6 | **Áreas Protegidas y Parques Nacionales** | `deforestacion-alert-etl/external/protected_areas/protected_areas.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/protected_areas/protected_areas.csv` | `data/external/protected_areas/protected_areas.csv` |
+
+> 💡 **Subida manual:** Si subes los archivos manualmente a S3 desde la consola de AWS o AWS CLI, colócalos exactamente en las rutas listadas en la columna *Ruta en S3*. Automáticamente quedarán expuestos en las URLs públicas del proxy y serán consumidos por los notebooks sin necesidad de descargas repetitivas por API.
 
 ---
 
@@ -78,35 +186,42 @@ El diagrama editable está en [`docs/architecture.drawio`](docs/architecture.dra
 deforestation-alert-etl/
 ├── .github/
 │   └── workflows/
-│       ├── deploy.yml          # CI/CD: deploy scripts a Lightsail en push a main
-│       └── batch.yml           # Cron diario: ejecuta batch_download.py en Lightsail
+│       ├── deploy.yml          # CI/CD: deploy scripts y Airflow a Lightsail (push main)
+│       └── batch.yml           # Cron diario (22:00): ejecuta DAG / batch en Lightsail
+├── dags/
+│   └── deforestation_etl_dag.py # DAG de Apache Airflow (schedule 22:00)
 ├── data/
 │   ├── csv/                    # CSVs GFW (excluidos del repo por .gitignore)
 │   ├── external/               # Datasets externos (excluidos del repo)
 │   │   ├── worldbank/
 │   │   ├── faostat/
-│   │   └── geonames/
+│   │   ├── geonames/
+│   │   └── protected_areas/
 │   └── results/                # Figuras generadas por los notebooks
 ├── docs/
 │   ├── architecture.drawio     # Diagrama de arquitectura (editable)
 │   ├── setup.md                # Instrucciones detalladas de configuración
-│   └── datasets_externos.md    # Documentación de fuentes externas
+│   ├── datasets_externos.md    # Documentación de fuentes externas
+│   └── img/
+│       └── airflow_dag.png     # Captura de pantalla de la interfaz de Airflow
 ├── notebooks/
 │   ├── 01_eda_gfw.ipynb        # EDA del dataset GFW raw
 │   ├── 02_eda_worldbank.ipynb  # EDA indicadores World Bank
 │   ├── 03_eda_faostat.ipynb    # EDA producción FAO
 │   ├── 04_eda_geonames.ipynb   # EDA localidades GeoNames
-│   ├── 05_etl_pipeline.ipynb   # ETL unificado + migración + visualizaciones
+│   ├── 05_etl_pipeline.ipynb   # ETL unificado + 8 análisis analíticos + Star Schema
 │   └── etl_eda.ipynb           # Notebook original (primera entrega)
 ├── scripts/
-│   ├── batch_download.py       # Orquestador: ejecuta todos los downloads + S3
-│   ├── sync_alerts.py          # Descarga incremental de alertas GFW
-│   ├── download_dataset.py     # Descarga inicial completa GFW (primera entrega)
+│   ├── batch_download.py       # Orquestador: ejecuta downloads + quality + S3
+│   ├── sync_alerts.py          # Descarga incremental de alertas GFW (evita full download inicial)
+│   ├── download_dataset.py     # Descarga completa histórica GFW
 │   ├── download_worldbank.py   # Descarga indicadores World Bank API
 │   ├── download_faostat.py     # Descarga producción agrícola FAO (bulk CSV)
 │   ├── download_geonames.py    # Descarga localidades pobladas GeoNames
-│   ├── upload_to_s3.py         # Sube CSVs al bucket S3
-│   ├── fetch_from_proxy.py     # Descarga CSVs desde proxy inverso (S3 → local)
+│   ├── scrape_protected_areas.py # Extracción de parques y reservas naturales
+│   ├── validate_quality.py     # Great Expectations — suite de validación de calidad
+│   ├── upload_to_s3.py         # Sube CSVs al bucket S3 (prefijo deforestacion-alert-etl/)
+│   ├── fetch_from_proxy.py     # Descarga CSVs desde https://docs.jhoanhurtado.com
 │   └── gfw_signup.py           # Registro y obtención de API key GFW
 ├── .env.example                # Plantilla de variables de entorno
 ├── .gitignore
@@ -118,14 +233,20 @@ deforestation-alert-etl/
 
 ## Scripts — qué hace cada uno
 
+### `validate_quality.py` ★
+Control de calidad formal de datos con **Great Expectations**. Ejecuta suites de expectativas sobre los CSVs de GFW, World Bank, GeoNames y Áreas Protegidas antes de permitir la inserción a base de datos.
+```bash
+python scripts/validate_quality.py
+```
+
 ### `batch_download.py`
-Orquestador principal. Llama en secuencia a todos los scripts de descarga y luego sube a S3. Diseñado para correr como tarea programada (cron) en el servidor Lightsail.
+Orquestador de extracción y carga. Llama en secuencia a todos los scripts de descarga, valida calidad con Great Expectations y luego sube a S3. Diseñado para correr como tarea programada o fallback a las 22:00.
 
 ```bash
-python scripts/batch_download.py                  # descarga todo + sube a S3
+python scripts/batch_download.py                  # descarga todo + quality check + S3
 python scripts/batch_download.py --skip-gfw       # omite GFW (solo externos)
+python scripts/batch_download.py --skip-quality   # omite control de calidad
 python scripts/batch_download.py --skip-upload    # no sube a S3
-python scripts/batch_download.py --full-gfw       # GFW completo (no solo --daily)
 ```
 
 ### `sync_alerts.py`
@@ -139,7 +260,7 @@ python scripts/sync_alerts.py --country BOL       # solo un país
 ```
 
 ### `download_dataset.py`
-Descarga inicial completa del dataset GFW (primera entrega). Genera los CSVs históricos completos para BOL y COL. Solo necesario la primera vez.
+Descarga inicial completa del dataset GFW. Genera los CSVs históricos completos para BOL y COL. Solo necesario la primera vez.
 
 ```bash
 python scripts/download_dataset.py   # menú interactivo
@@ -170,18 +291,24 @@ python scripts/download_geonames.py
 ```
 
 ### `upload_to_s3.py`
-Sube todos los CSVs de `data/csv/` y `data/external/` al bucket S3 configurado en `.env`. Mantiene la estructura de carpetas.
+Sube todos los CSVs de `data/csv/` y `data/external/` al bucket S3 bajo el prefijo `deforestacion-alert-etl/`.
+- **Eliminación automática:** Tras confirmar la subida exitosa a S3, elimina automáticamente las copias locales para ahorrar espacio y cumplir la política de almacenamiento.
+- **Trazabilidad y Logs:** Registra cada archivo subido y eliminado en `logs/s3_upload.log` y sincroniza el archivo de log al bucket S3 (`deforestacion-alert-etl/logs/`).
 
 ```bash
-python scripts/upload_to_s3.py             # sube todo
-python scripts/upload_to_s3.py --dry-run   # muestra qué subiría sin subir
+python scripts/upload_to_s3.py                  # sube a S3 y elimina locales automáticamente
+python scripts/upload_to_s3.py --keep-local     # sube a S3 conservando copias locales
+python scripts/upload_to_s3.py --dry-run        # muestra qué subiría sin realizar cambios
 ```
 
 ### `fetch_from_proxy.py`
-Descarga los CSVs desde el proxy inverso (que apunta al bucket S3) al entorno local. El notebook lo llama antes de leer los datos.
+Descarga los CSVs desde el proxy inverso (`https://docs.jhoanhurtado.com/deforestacion-alert-etl/...`) al entorno local.
+- **Detección inteligente:** Si el archivo local ya existe, lo utiliza directamente sin descargar innecesariamente.
+- **Fuerza descarga:** Permite `--force` para sobreescribir.
 
 ```bash
-python scripts/fetch_from_proxy.py              # descarga todo
+python scripts/fetch_from_proxy.py              # descarga solo los que no existan
+python scripts/fetch_from_proxy.py --force      # fuerza la descarga de todos
 python scripts/fetch_from_proxy.py --only gfw   # solo alertas GFW
 python scripts/fetch_from_proxy.py --only external  # solo datasets externos
 ```
@@ -270,60 +397,61 @@ python scripts/gfw_signup.py
 
 ## Cómo ejecutar el pipeline
 
-### Opción A — Ejecución local completa (primera vez)
+### Opción A — Ejecución local inicial rápida (desde Proxy S3)
+
+Para evitar descargar horas de datos desde la API de GFW, se descarga la base inicial consolidada directamente desde el proxy:
 
 ```bash
-# 1. Descargar dataset GFW histórico (~95 MB, puede tardar horas)
-python scripts/download_dataset.py
-
-# 2. Descargar datasets externos
-python scripts/download_worldbank.py
-python scripts/download_faostat.py
-python scripts/download_geonames.py
-
-# 3. Subir a S3
-python scripts/upload_to_s3.py
-
-# 4. Abrir Jupyter y ejecutar notebooks en orden
-jupyter notebook
-# Ejecutar: 01 → 02 → 03 → 04 → 05
-```
-
-### Opción B — Ejecución local con datos desde S3 (uso diario)
-
-```bash
-# 1. Descargar CSVs actualizados desde el proxy
+# 1. Descargar datasets consolidados desde el proxy (S3)
 python scripts/fetch_from_proxy.py
 
-# 2. Ejecutar solo el pipeline ETL
-jupyter notebook notebooks/05_etl_pipeline.ipynb
-# La sección 5 del notebook detecta automáticamente los datos nuevos
-# y solo inserta las filas que no están en la DB
+# 2. Validar calidad de datos con Great Expectations
+python scripts/validate_quality.py
+
+# 3. Abrir Jupyter y ejecutar notebooks en orden
+jupyter notebook
+# Ejecutar: 01 → 02 → 03 → 04 → 05 (o directamente el notebook 05_etl_pipeline.ipynb)
 ```
 
-### Opción C — Batch en Lightsail (automático, cron diario)
+### Opción B — Ejecución local con sincronización incremental
 
-El servidor Lightsail ejecuta automáticamente a las 06:00 UTC:
+Si deseas actualizar con alertas recientes desde la API de GFW:
 
 ```bash
-# Equivalente a lo que corre el cron:
-python scripts/batch_download.py --daily
+# Sincroniza únicamente las fechas posteriores a la última alerta local
+python scripts/sync_alerts.py
+
+# Ejecutar el pipeline ETL unificado
+jupyter notebook notebooks/05_etl_pipeline.ipynb
+# La sección 5 del notebook detecta automáticamente los datos nuevos
+# y solo inserta las filas no existentes en la base de datos PostgreSQL
 ```
 
-Para forzar manualmente desde GitHub: ir a **Actions → Daily Batch Download → Run workflow**.
+### Opción C — Orquestación automática en Lightsail (Airflow / Cron 22:00)
+
+El servidor Lightsail ejecuta automáticamente todas las noches a las **22:00 (10:00 PM)**:
+- Mediante el scheduler de Apache Airflow (`deforestation_etl_dag`), visible en `https://airflow.jhoanhurtado.com`.
+- Con respaldo cron en Lightsail:
+```bash
+0 22 * * * /home/ubuntu/deforestation-alert-etl/venv/bin/python /home/ubuntu/deforestation-alert-etl/scripts/batch_download.py >> /home/ubuntu/logs/batch.log 2>&1
+```
+
+Para forzar manualmente la ejecución:
+- En la interfaz web de Airflow: activar y presionar **Trigger DAG**.
+- En GitHub: ir a **Actions → Daily Batch Download → Run workflow**.
 
 ---
 
 ## Despliegue en AWS Lightsail
 
-### Configuración inicial del servidor
+### Configuración inicial del servidor y Nginx Reverse Proxy
 
 ```bash
 # 1. Conectar al servidor
 ssh ubuntu@<LIGHTSAIL_IP>
 
-# 2. Instalar dependencias del sistema
-sudo apt update && sudo apt install -y python3.12 python3.12-venv git
+# 2. Instalar dependencias del sistema y Nginx
+sudo apt update && sudo apt install -y python3.12 python3.12-venv git nginx
 
 # 3. Clonar el repositorio
 git clone https://github.com/<tu-usuario>/deforestation-alert-etl.git
@@ -339,14 +467,25 @@ nano .env   # completar con valores reales
 
 # 6. Crear directorio de logs
 mkdir -p ~/logs
-```
 
-### Configurar cron manualmente (alternativa a GitHub Actions)
+# 7. Configurar Nginx para el subdominio airflow.jhoanhurtado.com -> puerto 9179
+sudo tee /etc/nginx/sites-available/airflow.conf << 'EOF'
+server {
+    listen 80;
+    server_name airflow.jhoanhurtado.com airflow-etl.jhoanhurtado.com;
 
-```bash
-crontab -e
-# Agregar:
-0 6 * * * /home/ubuntu/deforestation-alert-etl/venv/bin/python /home/ubuntu/deforestation-alert-etl/scripts/batch_download.py >> /home/ubuntu/logs/batch.log 2>&1
+    location / {
+        proxy_pass http://localhost:9179;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF
+sudo ln -sf /etc/nginx/sites-available/airflow.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### Secrets requeridos en GitHub
@@ -356,77 +495,132 @@ Ir a **Settings → Secrets and variables → Actions** y agregar:
 | Secret | Valor |
 |--------|-------|
 | `LIGHTSAIL_HOST` | IP pública del servidor Lightsail |
-| `LIGHTSAIL_USER` | Usuario SSH (normalmente `ubuntu`) |
-| `LIGHTSAIL_SSH_KEY` | Contenido completo de la clave privada SSH (`.pem`) |
+| `LIGHTSAIL_USER` | Usuario SSH (`ubuntu`) |
+| `LIGHTSAIL_SSH_KEY` | Contenido de la clave privada SSH (`.pem`) |
 | `GFW_API_KEY` | API key de Global Forest Watch |
-| `PG_USER` / `PG_PASSWORD` / `PG_HOST` / `PG_PORT` / `PG_DB` | PostgreSQL |
-| `S3_BUCKET` / `S3_PREFIX` | Bucket y prefijo S3 |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | AWS |
-| `DATA_PROXY_URL` | URL del proxy inverso |
+| `PG_USER` / `PG_PASSWORD` / `PG_HOST` / `PG_PORT` / `PG_DB` | Conexión PostgreSQL |
+| `S3_BUCKET` | Nombre del bucket S3 |
+| `S3_PREFIX` | `deforestacion-alert-etl/` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | AWS credentials |
+| `DATA_PROXY_URL` | `https://docs.jhoanhurtado.com` |
 
 ---
 
 ## GitHub Actions CI/CD
 
-### `deploy.yml` — Deploy automático
+### `deploy.yml` — Deploy automático y aprovisionamiento de Airflow
 
-Se activa en cada push a `main` que modifique archivos en `scripts/` o `requirements.txt`.
+Se activa en cada push a `main` que modifique archivos en `scripts/`, `dags/`, `notebooks/`, `requirements.txt` o `deploy.yml`.
 
-**Pasos:**
-1. Conecta al servidor Lightsail por SSH
-2. Hace `git pull origin main`
-3. Actualiza el venv con `pip install -r requirements.txt`
-4. Escribe el archivo `.env` desde los secrets de GitHub
-5. Instala/actualiza el cron job
+**Pasos automatizados:**
+1. Conecta al servidor Lightsail por SSH.
+2. Hace `git pull origin main` y actualiza dependencias (`pip install -r requirements.txt`).
+3. Escribe el archivo `.env` desde los secrets de GitHub.
+4. **Configura e inicializa Apache Airflow automáticamente**:
+   - Corre las migraciones de base de datos (`airflow db migrate`).
+   - Crea/actualiza el usuario administrador:
+     - **Usuario:** `admin` | **Contraseña:** `admin`
+     - **Nombre:** Jhoan Hurtado | **Rol:** `Admin` | **Email:** `jhoanezequielh@gmail.com`
+   - Configura y activa los servicios persistentes `systemd`:
+     - `airflow-webserver.service` en el **puerto 9179** (`http://<LIGHTSAIL_IP>:9179` / `https://airflow.jhoanhurtado.com`).
+     - `airflow-scheduler.service` para ejecución automática diaria a las 22:00 (10:00 PM).
+5. Instala el cron job de respaldo para `batch_download.py`.
+6. Verifica que los servicios de Airflow estén activos y el puerto 9179 esté escuchando.
 
 ### `batch.yml` — Ejecución diaria programada
 
-Se activa automáticamente a las 06:00 UTC o manualmente desde la UI de GitHub Actions.
+Se activa automáticamente a las 22:00 (10:00 PM) o manualmente desde la UI de GitHub Actions.
 
-**Parámetros opcionales (workflow_dispatch):**
-- `skip_gfw`: omite la descarga de alertas GFW
-- `skip_upload`: omite la subida a S3
+**Acciones:**
+- Dispara el DAG de Airflow (`airflow dags trigger deforestation_etl_dag`).
+- Si Airflow no estuviera disponible, ejecuta automáticamente el script fallback `batch_download.py`.
+- Soporta parámetros opcionales (`skip_gfw`, `skip_upload`).
+
 
 ---
 
 ## Modelo de datos (Star Schema)
 
-```
-                    dim_date
-                    ┌──────────────┐
-                    │ date_id (PK) │
-                    │ date         │
-                    │ year · month │
-                    │ week         │
-                    └──────┬───────┘
-                           │
-dim_location        fact_alerts          dim_driver
-┌─────────────┐    ┌──────────────────┐  ┌─────────────┐
-│ location_id │◄───│ alert_id (PK)    │  │ driver_id   │
-│ country_code│    │ date_id (FK)     │──►│ driver_name │
-│ country_name│    │ location_id (FK) │  └─────────────┘
-│ adm1_code   │    │ driver_id (FK)   │
-│ adm1_name   │    │ land_cover_id(FK)│  dim_land_cover
-└─────────────┘    │ confidence_id(FK)│  ┌──────────────────┐
-                   │ econ_id (FK) ★   │  │ land_cover_id    │
-dim_confidence     │ lat · lon        │  │ land_cover_class │
-┌──────────────┐   │ tree_cover_pct   │  └──────────────────┘
-│confidence_id │◄──│ is_primary_forest│
-│ confidence   │   │ protected_area   │  dim_economic_context ★
-│ is_high_conf │   │ is_soy_area      │  ┌──────────────────────┐
-└──────────────┘   │ dist_place_km ★  │  │ econ_id              │
-                   └──────────────────┘  │ country_code · year  │
-                                         │ gdp_usd              │
-dim_places ★                             │ agricultural_land_pct│
-┌──────────────────┐                     │ soy_production_t     │
-│ place_id         │                     │ soy_area_ha          │
-│ place_name       │                     └──────────────────────┘
-│ lat · lon        │
-│ population       │
-└──────────────────┘
+```mermaid
+erDiagram
+    dim_date {
+        int date_id PK
+        date date
+        int year
+        int month
+        int week
+        int day_of_week
+    }
 
-★ = Nuevas tablas/columnas en la segunda entrega
+    dim_location {
+        int location_id PK
+        string country_code
+        string country_name
+        string adm1_code
+        string adm1_name
+    }
+
+    dim_driver {
+        int driver_id PK
+        string driver_name
+    }
+
+    dim_land_cover {
+        int land_cover_id PK
+        string land_cover_class
+    }
+
+    dim_confidence {
+        int confidence_id PK
+        string confidence
+        boolean is_high_conf
+    }
+
+    dim_economic_context {
+        int econ_id PK "★ Nueva dimensión"
+        string country_code
+        int year
+        float gdp_usd
+        float agricultural_land_pct
+        float soy_production_t
+        float soy_area_ha
+    }
+
+    dim_places {
+        int place_id PK "★ Nueva dimensión"
+        string place_name
+        float latitude
+        float longitude
+        int population
+    }
+
+    fact_alerts {
+        bigint alert_id PK
+        int date_id FK
+        int location_id FK
+        int driver_id FK
+        int land_cover_id FK
+        int confidence_id FK
+        int econ_id FK "★ FK económica"
+        float latitude
+        float longitude
+        float tree_cover_pct
+        boolean is_primary_forest
+        string protected_area
+        boolean is_soy_area
+        float dist_place_km "★ Métrica haversine"
+    }
+
+    fact_alerts }o--|| dim_date : "date_id"
+    fact_alerts }o--|| dim_location : "location_id"
+    fact_alerts }o--|| dim_driver : "driver_id"
+    fact_alerts }o--|| dim_land_cover : "land_cover_id"
+    fact_alerts }o--|| dim_confidence : "confidence_id"
+    fact_alerts }o--|| dim_economic_context : "econ_id"
+    fact_alerts }o--o| dim_places : "dist_place_km (GeoNames)"
 ```
+
+> **★ = Nuevas tablas y métricas añadidas en la Segunda Entrega** para responder a los análisis de causalidad macroeconómica, presión agropecuaria y proximidad a centros poblados.
 
 ---
 

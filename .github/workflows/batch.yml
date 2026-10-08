@@ -40,7 +40,16 @@ jobs:
             if [ "${{ inputs.skip_gfw }}" = "true" ]; then ARGS="$ARGS --skip-gfw"; fi
             if [ "${{ inputs.skip_upload }}" = "true" ]; then ARGS="$ARGS --skip-upload"; fi
 
-            echo "── Starting batch download $(date) ──" | tee -a "$LOG"
+            echo "── Starting batch execution $(date) ──" | tee -a "$LOG"
             cd "$PROJECT_DIR"
-            "$PYTHON" scripts/batch_download.py $ARGS 2>&1 | tee -a "$LOG"
+            export AIRFLOW_HOME="$HOME/airflow"
+            export AIRFLOW__CORE__DAGS_FOLDER="$PROJECT_DIR/dags"
+
+            echo "── Triggering Airflow DAG or running batch script ──"
+            if "$PYTHON" -m airflow dags trigger deforestation_etl_dag 2>&1 | tee -a "$LOG"; then
+              echo "✅ Airflow DAG triggered successfully" | tee -a "$LOG"
+            else
+              echo "⚠️ Fallback: running batch_download.py directly" | tee -a "$LOG"
+              "$PYTHON" scripts/batch_download.py $ARGS 2>&1 | tee -a "$LOG"
+            fi
             echo "── Done $(date) ──" | tee -a "$LOG"

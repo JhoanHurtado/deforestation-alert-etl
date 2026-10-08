@@ -1,256 +1,351 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+<mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1080" math="0" shadow="0">
   <root>
     <mxCell id="0" />
     <mxCell id="1" parent="0" />
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- TÍTULO -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="title" value="Deforestation Alert ETL — Architecture (Second Delivery)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;" vertex="1" parent="1">
-      <mxGeometry x="200" y="20" width="1200" height="40" as="geometry" />
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- HEADER & METADATA                                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <mxCell id="header_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#232F3E;strokeColor=#1A242F;strokeWidth=1;arcSize=4;" vertex="1" parent="1">
+      <mxGeometry x="40" y="20" width="1840" height="60" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: FUENTES DE DATOS -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_sources" value="DATA SOURCES" style="swimlane;startSize=25;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="40" y="80" width="220" height="480" as="geometry" />
+    <mxCell id="aws_badge" value="AWS Architecture" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9900;strokeColor=none;fontColor=#232F3E;fontStyle=1;fontSize=11;align=center;verticalAlign=middle;arcSize=20;" vertex="1" parent="1">
+      <mxGeometry x="60" y="35" width="130" height="30" as="geometry" />
     </mxCell>
 
-    <mxCell id="src_gfw" value="🌐 GFW API&#xa;gfw_integrated_alerts&#xa;BOL + COL (2022–2026)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_sources">
-      <mxGeometry x="15" y="40" width="190" height="60" as="geometry" />
+    <mxCell id="main_title" value="Deforestation Alert ETL — Cloud &amp; Local Hybrid Architecture (Second Delivery)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#FFFFFF;fontStyle=1;fontSize=16;" vertex="1" parent="1">
+      <mxGeometry x="210" y="32" width="800" height="35" as="geometry" />
     </mxCell>
 
-    <mxCell id="src_wb" value="🌐 World Bank API&#xa;PIB, Tierra agrícola&#xa;Población rural (2015–2024)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_sources">
-      <mxGeometry x="15" y="130" width="190" height="60" as="geometry" />
+    <mxCell id="main_subtitle" value="Batch Orchestration (22:00) · Apache Airflow · Great Expectations · S3 Raw Lake · PostgreSQL Star Schema" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;fontColor=#AAB7B8;fontSize=11;" vertex="1" parent="1">
+      <mxGeometry x="1050" y="35" width="810" height="30" as="geometry" />
     </mxCell>
 
-    <mxCell id="src_fao" value="🌐 FAO FAOSTAT&#xa;Soya, Ganadería, Palma&#xa;Producción + Área (2015–2024)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_sources">
-      <mxGeometry x="15" y="220" width="190" height="60" as="geometry" />
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ZONE 1: EXTERNAL DATA PROVIDERS                                       -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <mxCell id="zone_sources" value="External Data Providers &amp; Web Services" style="swimlane;startSize=28;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.5;fontStyle=1;fontSize=12;fontColor=#1E293B;rounded=1;arcSize=4;" vertex="1" parent="1">
+      <mxGeometry x="40" y="100" width="250" height="650" as="geometry" />
     </mxCell>
 
-    <mxCell id="src_geo" value="🌐 GeoNames Dump&#xa;Localidades pobladas&#xa;BOL + COL (~61k lugares)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_sources">
-      <mxGeometry x="15" y="310" width="190" height="60" as="geometry" />
+    <mxCell id="src_gfw" value="🌐 Global Forest Watch API&#xa;&lt;b&gt;gfw_integrated_alerts&lt;/b&gt;&#xa;Bolivia &amp; Colombia (2022–2026)&#xa;Incremental daily sync" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=10;align=center;" vertex="1" parent="zone_sources">
+      <mxGeometry x="15" y="45" width="220" height="90" as="geometry" />
     </mxCell>
 
-    <mxCell id="src_csv" value="📄 CSV histórico&#xa;bol_alerts_*.csv&#xa;col_alerts_*.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_sources">
-      <mxGeometry x="15" y="400" width="190" height="60" as="geometry" />
+    <mxCell id="src_wb" value="🌐 World Bank Open Data API&#xa;&lt;b&gt;Economic Indicators (2015–2024)&lt;/b&gt;&#xa;GDP, Rural Pop, Agri Land %&#xa;JSON REST Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=10;align=center;" vertex="1" parent="zone_sources">
+      <mxGeometry x="15" y="155" width="220" height="85" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: LIGHTSAIL BATCH SERVER -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_lightsail" value="AWS LIGHTSAIL — Batch Server" style="swimlane;startSize=25;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="320" y="80" width="260" height="480" as="geometry" />
+    <mxCell id="src_fao" value="🌐 FAO FAOSTAT&#xa;&lt;b&gt;Agricultural Commodities&lt;/b&gt;&#xa;Soy, Cattle, Palm, Sugar cane&#xa;Bulk Regional CSV Dump" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=10;align=center;" vertex="1" parent="zone_sources">
+      <mxGeometry x="15" y="260" width="220" height="85" as="geometry" />
     </mxCell>
 
-    <mxCell id="ls_batch" value="⚙️ batch_download.py&#xa;Orquestador principal&#xa;Cron: 06:00 UTC diario" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=1;" vertex="1" parent="zone_lightsail">
-      <mxGeometry x="15" y="35" width="230" height="50" as="geometry" />
+    <mxCell id="src_geo" value="🌐 GeoNames Dump&#xa;&lt;b&gt;Populated Places (~61k)&lt;/b&gt;&#xa;BO.zip + CO.zip with coordinates&#xa;Geographic proximity baseline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=10;align=center;" vertex="1" parent="zone_sources">
+      <mxGeometry x="15" y="365" width="220" height="85" as="geometry" />
     </mxCell>
 
-    <mxCell id="ls_sync" value="sync_alerts.py&#xa;Descarga incremental GFW&#xa;--daily / --country" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="zone_lightsail">
-      <mxGeometry x="15" y="110" width="230" height="50" as="geometry" />
+    <mxCell id="src_protected" value="🌐 Wikipedia / WDPA&#xa;&lt;b&gt;Protected Areas (BOL + COL)&lt;/b&gt;&#xa;National parks &amp; reserves&#xa;Web scraping with robots.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.5;fontSize=10;align=center;" vertex="1" parent="zone_sources">
+      <mxGeometry x="15" y="470" width="220" height="85" as="geometry" />
     </mxCell>
 
-    <mxCell id="ls_wb" value="download_worldbank.py&#xa;World Bank REST API&#xa;4 indicadores × 2 países" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="zone_lightsail">
-      <mxGeometry x="15" y="180" width="230" height="50" as="geometry" />
+    <mxCell id="src_note" value="★ Multi-source extraction aligns with ODS 13 (Climate) &amp; ODS 15 (Life on Land)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#64748B;fontStyle=2;" vertex="1" parent="zone_sources">
+      <mxGeometry x="10" y="585" width="230" height="35" as="geometry" />
     </mxCell>
 
-    <mxCell id="ls_fao" value="download_faostat.py&#xa;FAO Bulk CSV Américas&#xa;4 cultivos × 2 países" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="zone_lightsail">
-      <mxGeometry x="15" y="250" width="230" height="50" as="geometry" />
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ZONE 2: AWS CLOUD REGION (us-east-1)                                  -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <mxCell id="aws_cloud" value="AWS Cloud (Region: us-east-1)" style="swimlane;startSize=28;fillColor=none;strokeColor=#232F3E;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#232F3E;rounded=1;arcSize=3;" vertex="1" parent="1">
+      <mxGeometry x="320" y="100" width="730" height="650" as="geometry" />
     </mxCell>
 
-    <mxCell id="ls_geo" value="download_geonames.py&#xa;GeoNames BO.zip + CO.zip&#xa;~61k localidades pobladas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="zone_lightsail">
-      <mxGeometry x="15" y="320" width="230" height="50" as="geometry" />
+    <!-- LIGHTSAIL CONTAINER (Compute) -->
+    <mxCell id="box_lightsail" value="Amazon Lightsail (Ubuntu 22.04 LTS Instance)" style="swimlane;startSize=26;fillColor=#FFF8F2;strokeColor=#ED7100;strokeWidth=1.5;fontStyle=1;fontSize=11;fontColor=#ED7100;rounded=1;arcSize=4;" vertex="1" parent="aws_cloud">
+      <mxGeometry x="20" y="40" width="370" height="590" as="geometry" />
     </mxCell>
 
-    <mxCell id="ls_s3" value="upload_to_s3.py&#xa;Sube CSVs al bucket S3&#xa;data/csv/ + data/external/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="zone_lightsail">
-      <mxGeometry x="15" y="390" width="230" height="60" as="geometry" />
+    <!-- NGINX PROXY -->
+    <mxCell id="ls_nginx" value="🔀 Nginx Reverse Proxy (Port 80 / 443)&#xa;Routes airflow.jhoanhurtado.com → Port 9179" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C4FFF;strokeColor=#5A30B5;strokeWidth=1;fontSize=10;fontColor=#FFFFFF;fontStyle=1;" vertex="1" parent="box_lightsail">
+      <mxGeometry x="15" y="38" width="340" height="42" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: AWS S3 -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_s3" value="AWS S3 — Raw Storage" style="swimlane;startSize=25;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="650" y="80" width="220" height="200" as="geometry" />
+    <!-- AIRFLOW ORCHESTRATION -->
+    <mxCell id="box_airflow" value="Apache Airflow 2.x Environment (Port 9179)" style="swimlane;startSize=22;fillColor=#FFFFFF;strokeColor=#ED7100;strokeWidth=1;fontStyle=1;fontSize=10;fontColor=#232F3E;rounded=1;arcSize=4;" vertex="1" parent="box_lightsail">
+      <mxGeometry x="15" y="90" width="340" height="150" as="geometry" />
     </mxCell>
 
-    <mxCell id="s3_gfw" value="raw/gfw/&#xa;bol_alerts_*.csv&#xa;col_alerts_*.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="zone_s3">
-      <mxGeometry x="15" y="40" width="190" height="50" as="geometry" />
+    <mxCell id="af_webserver" value="🖥️ Webserver (:9179)&#xa;User: admin / admin&#xa;Jhoan Hurtado (Role: Admin)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E6;strokeColor=#ED7100;strokeWidth=1;fontSize=9;" vertex="1" parent="box_airflow">
+      <mxGeometry x="15" y="32" width="145" height="50" as="geometry" />
     </mxCell>
 
-    <mxCell id="s3_ext" value="raw/external/&#xa;worldbank/ · faostat/&#xa;geonames/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="zone_s3">
-      <mxGeometry x="15" y="110" width="190" height="50" as="geometry" />
+    <mxCell id="af_scheduler" value="⏱️ Scheduler (systemd)&#xa;Cron: 0 22 * * * (22:00)&#xa;Persistent Background" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E6;strokeColor=#ED7100;strokeWidth=1;fontSize=9;" vertex="1" parent="box_airflow">
+      <mxGeometry x="180" y="32" width="145" height="50" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- PROXY INVERSO -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="proxy" value="🔀 Reverse Proxy&#xa;DATA_PROXY_URL&#xa;(Lightsail → S3)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
-      <mxGeometry x="650" y="330" width="220" height="60" as="geometry" />
+    <mxCell id="af_dag" value="DAG: deforestation_etl_dag&#xa;sync_gfw &gt;&gt; [worldbank, faostat, geonames, scrape] &gt;&gt; upload_s3 &gt;&gt; validate_quality &gt;&gt; run_etl" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ED7100;strokeColor=#C85A00;strokeWidth=1;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" vertex="1" parent="box_airflow">
+      <mxGeometry x="15" y="90" width="310" height="45" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: LOCAL / NOTEBOOK -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_local" value="LOCAL — Jupyter Notebooks" style="swimlane;startSize=25;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="940" y="80" width="260" height="480" as="geometry" />
+    <!-- ETL SCRIPTS BATCH -->
+    <mxCell id="ls_scripts" value="Python 3.12 Virtualenv &amp; Batch Execution" style="swimlane;startSize=22;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=1;fontStyle=1;fontSize=10;fontColor=#1E293B;rounded=1;arcSize=4;" vertex="1" parent="box_lightsail">
+      <mxGeometry x="15" y="250" width="340" height="210" as="geometry" />
     </mxCell>
 
-    <mxCell id="nb_fetch" value="fetch_from_proxy.py&#xa;Descarga CSVs desde proxy&#xa;→ data/csv/ + data/external/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_local">
-      <mxGeometry x="15" y="35" width="230" height="50" as="geometry" />
+    <mxCell id="sc_gfw" value="sync_alerts.py&#xa;Incremental check from max date" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=9;" vertex="1" parent="ls_scripts">
+      <mxGeometry x="15" y="30" width="145" height="40" as="geometry" />
     </mxCell>
 
-    <mxCell id="nb01" value="01_eda_gfw.ipynb&#xa;EDA raw GFW&#xa;Decisiones de transformación" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_local">
-      <mxGeometry x="15" y="110" width="230" height="50" as="geometry" />
+    <mxCell id="sc_ext" value="download_*.py + scrape_*.py&#xa;WB, FAO, GeoNames, Protected" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=9;" vertex="1" parent="ls_scripts">
+      <mxGeometry x="180" y="30" width="145" height="40" as="geometry" />
     </mxCell>
 
-    <mxCell id="nb02" value="02_eda_worldbank.ipynb&#xa;EDA indicadores económicos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_local">
-      <mxGeometry x="15" y="175" width="230" height="50" as="geometry" />
+    <mxCell id="sc_batch" value="batch_download.py&#xa;Sequencer &amp; Cron fallback orchestrator (22:00)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;fontSize=9;" vertex="1" parent="ls_scripts">
+      <mxGeometry x="15" y="80" width="310" height="35" as="geometry" />
     </mxCell>
 
-    <mxCell id="nb03" value="03_eda_faostat.ipynb&#xa;EDA producción agrícola" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_local">
-      <mxGeometry x="15" y="240" width="230" height="50" as="geometry" />
+    <mxCell id="sc_quality" value="🛡️ validate_quality.py (Great Expectations 1.23)&#xa;Halts pipeline if schema, nulls or coordinates fail" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#10B981;strokeColor=#047857;strokeWidth=1.5;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" vertex="1" parent="ls_scripts">
+      <mxGeometry x="15" y="125" width="310" height="38" as="geometry" />
     </mxCell>
 
-    <mxCell id="nb04" value="04_eda_geonames.ipynb&#xa;EDA localidades pobladas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="zone_local">
-      <mxGeometry x="15" y="305" width="230" height="50" as="geometry" />
+    <mxCell id="sc_s3up" value="upload_to_s3.py (Boto3)&#xa;Uploads CSVs to prefix deforestacion-alert-etl/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3F8624;strokeColor=#2E6619;fontColor=#FFFFFF;fontStyle=1;fontSize=9;" vertex="1" parent="ls_scripts">
+      <mxGeometry x="15" y="170" width="310" height="32" as="geometry" />
     </mxCell>
 
-    <mxCell id="nb05" value="05_etl_pipeline.ipynb&#xa;ETL unificado + Carga incremental&#xa;+ EDA desde DB + Visualizaciones" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="zone_local">
-      <mxGeometry x="15" y="375" width="230" height="60" as="geometry" />
+    <!-- BACKUP CRON -->
+    <mxCell id="ls_cron" value="⏰ Backup Cron: 0 22 * * * /home/ubuntu/venv/bin/python .../batch_download.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1;fontSize=9;fontColor=#92400E;align=center;" vertex="1" parent="box_lightsail">
+      <mxGeometry x="15" y="540" width="340" height="30" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: POSTGRESQL STAR SCHEMA -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_db" value="PostgreSQL — Star Schema" style="swimlane;startSize=25;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="940" y="620" width="480" height="280" as="geometry" />
+    <!-- S3 CONTAINER (Storage) -->
+    <mxCell id="box_s3" value="Amazon Simple Storage Service (Amazon S3)" style="swimlane;startSize=26;fillColor=#F2F8F0;strokeColor=#3F8624;strokeWidth=1.5;fontStyle=1;fontSize=11;fontColor=#3F8624;rounded=1;arcSize=4;" vertex="1" parent="aws_cloud">
+      <mxGeometry x="410" y="40" width="300" height="380" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_fact" value="fact_alerts&#xa;~1.5M filas&#xa;date_id · location_id · driver_id&#xa;land_cover_id · confidence_id · econ_id&#xa;lat · lon · tree_cover_pct · dist_km" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;" vertex="1" parent="zone_db">
-      <mxGeometry x="155" y="100" width="170" height="90" as="geometry" />
+    <mxCell id="s3_bucket" value="🪣 Bucket: your-s3-bucket&#xa;Prefix: deforestacion-alert-etl/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3F8624;strokeColor=#2E6619;strokeWidth=1;fontColor=#FFFFFF;fontStyle=1;fontSize=10;" vertex="1" parent="box_s3">
+      <mxGeometry x="15" y="38" width="270" height="42" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_date" value="dim_date&#xa;date · year · month · week" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="15" y="40" width="130" height="45" as="geometry" />
+    <mxCell id="s3_gfw" value="📂 gfw/&#xa;• bol_alerts_2022-01-01_2026-07-31.csv&#xa;• col_alerts_2022-01-01_2026-07-31.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A7D49B;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_s3">
+      <mxGeometry x="15" y="90" width="270" height="60" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_loc" value="dim_location&#xa;country · adm1_name" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="15" y="110" width="130" height="45" as="geometry" />
+    <mxCell id="s3_ext_wb" value="📂 external/worldbank/&#xa;• worldbank_indicators.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A7D49B;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_s3">
+      <mxGeometry x="15" y="160" width="270" height="40" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_drv" value="dim_driver&#xa;driver_name" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="15" y="180" width="130" height="45" as="geometry" />
+    <mxCell id="s3_ext_fao" value="📂 external/faostat/&#xa;• faostat_production.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A7D49B;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_s3">
+      <mxGeometry x="15" y="210" width="270" height="40" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_lc" value="dim_land_cover&#xa;land_cover_class" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="335" y="40" width="130" height="45" as="geometry" />
+    <mxCell id="s3_ext_geo" value="📂 external/geonames/&#xa;• geonames_places.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A7D49B;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_s3">
+      <mxGeometry x="15" y="260" width="270" height="40" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_conf" value="dim_confidence&#xa;confidence · is_high" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="335" y="110" width="130" height="45" as="geometry" />
+    <mxCell id="s3_ext_prot" value="📂 external/protected_areas/&#xa;• protected_areas.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#A7D49B;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_s3">
+      <mxGeometry x="15" y="310" width="270" height="40" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_econ" value="dim_economic_context ★&#xa;gdp · agri_land · soy_area" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="335" y="180" width="130" height="45" as="geometry" />
+    <!-- PUBLIC PROXY DISTRIBUTION -->
+    <mxCell id="box_proxy" value="Public HTTP/HTTPS Distribution" style="swimlane;startSize=22;fillColor=#F6F0FD;strokeColor=#8C4FFF;strokeWidth=1.5;fontStyle=1;fontSize=10;fontColor=#8C4FFF;rounded=1;arcSize=4;" vertex="1" parent="aws_cloud">
+      <mxGeometry x="410" y="440" width="300" height="190" as="geometry" />
     </mxCell>
 
-    <mxCell id="db_dim_places" value="dim_places ★&#xa;place_name · lat · lon · pop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=9;" vertex="1" parent="zone_db">
-      <mxGeometry x="155" y="220" width="170" height="45" as="geometry" />
+    <mxCell id="proxy_ep" value="🌐 Base URL: https://docs.jhoanhurtado.com&#xa;&lt;b&gt;/deforestacion-alert-etl/&amp;lt;path&amp;gt;/&amp;lt;file&amp;gt;&lt;/b&gt;&#xa;Secure HTTPS proxy directly serving raw CSV files" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C4FFF;strokeColor=#6B21A8;strokeWidth=1;fontColor=#FFFFFF;fontStyle=1;fontSize=9;align=center;" vertex="1" parent="box_proxy">
+      <mxGeometry x="15" y="32" width="270" height="55" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: VISUALIZACIONES -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_viz" value="Visualizations &amp; Reports" style="swimlane;startSize=25;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="1460" y="620" width="160" height="280" as="geometry" />
+    <mxCell id="proxy_subdomain" value="🌐 Airflow Web Access:&#xa;&lt;b&gt;https://airflow.jhoanhurtado.com&lt;/b&gt;&#xa;Enrouted via Nginx to local port 9179" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#C4B5FD;strokeWidth=1;fontSize=9;align=center;" vertex="1" parent="box_proxy">
+      <mxGeometry x="15" y="100" width="270" height="55" as="geometry" />
     </mxCell>
 
-    <mxCell id="viz_dash" value="📊 Dashboard&#xa;matplotlib + seaborn&#xa;data/results/*.png" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="zone_viz">
-      <mxGeometry x="10" y="40" width="140" height="60" as="geometry" />
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ZONE 3: CI/CD DEPLOYMENT (GITHUB ACTIONS)                             -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <mxCell id="zone_cicd" value="CI/CD &amp; Deployment Automation (GitHub Actions)" style="swimlane;startSize=26;fillColor=#F8FAFC;strokeColor=#0F172A;strokeWidth=1.5;fontStyle=1;fontSize=11;fontColor=#0F172A;rounded=1;arcSize=4;" vertex="1" parent="1">
+      <mxGeometry x="40" y="780" width="250" height="260" as="geometry" />
     </mxCell>
 
-    <mxCell id="viz_corr" value="📈 Correlaciones&#xa;Alertas vs PIB&#xa;Alertas vs Soya" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="zone_viz">
-      <mxGeometry x="10" y="120" width="140" height="60" as="geometry" />
+    <mxCell id="wf_deploy" value="🚀 deploy.yml&#xa;• Trigger: Push to main&#xa;• SSH remote deploy to Lightsail&#xa;• Auto-provisions Airflow (:9179)&#xa;• Creates Admin user &amp; systemd units" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="zone_cicd">
+      <mxGeometry x="15" y="35" width="220" height="85" as="geometry" />
     </mxCell>
 
-    <mxCell id="viz_geo" value="🗺️ Mapas&#xa;Distancia a poblados&#xa;Hotspots por depto" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="zone_viz">
-      <mxGeometry x="10" y="200" width="140" height="60" as="geometry" />
+    <mxCell id="wf_batch" value="⏱️ batch.yml&#xa;• Trigger: Cron 22:00 (10:00 PM) / Manual&#xa;• Dispatches deforestation_etl_dag&#xa;• Automated fallback to batch_download.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="zone_cicd">
+      <mxGeometry x="15" y="135" width="220" height="75" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- ZONA: GITHUB ACTIONS CI/CD -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <mxCell id="zone_cicd" value="GitHub Actions — CI/CD" style="swimlane;startSize=25;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-      <mxGeometry x="320" y="620" width="260" height="160" as="geometry" />
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ZONE 4: LOCAL CONSUMER / ANALYTICS ENVIRONMENT                        -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <mxCell id="zone_local" value="Local Analytics &amp; Data Warehouse Environment" style="swimlane;startSize=28;fillColor=#F8FAFC;strokeColor=#3B82F6;strokeWidth=1.5;fontStyle=1;fontSize=12;fontColor=#1E3A8A;rounded=1;arcSize=3;" vertex="1" parent="1">
+      <mxGeometry x="1080" y="100" width="800" height="940" as="geometry" />
     </mxCell>
 
-    <mxCell id="cicd_deploy" value="deploy.yml&#xa;Push a main → SSH deploy&#xa;Actualiza scripts + cron" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="zone_cicd">
-      <mxGeometry x="15" y="40" width="230" height="45" as="geometry" />
+    <!-- FETCH & PREP -->
+    <mxCell id="box_fetch" value="Client Ingestion &amp; Quality Gateway" style="swimlane;startSize=22;fillColor=#EFF6FF;strokeColor=#60A5FA;strokeWidth=1;fontStyle=1;fontSize=10;fontColor=#1E40AF;rounded=1;arcSize=4;" vertex="1" parent="zone_local">
+      <mxGeometry x="20" y="40" width="760" height="90" as="geometry" />
     </mxCell>
 
-    <mxCell id="cicd_batch" value="batch.yml&#xa;Cron 06:00 UTC → SSH&#xa;Ejecuta batch_download.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="zone_cicd">
-      <mxGeometry x="15" y="100" width="230" height="45" as="geometry" />
+    <mxCell id="loc_fetch" value="fetch_from_proxy.py&#xa;Downloads baseline data from https://docs.jhoanhurtado.com&#xa;Bypasses lengthy GFW initial API download" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1;fontSize=9;align=center;" vertex="1" parent="box_fetch">
+      <mxGeometry x="15" y="30" width="350" height="45" as="geometry" />
     </mxCell>
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- FLECHAS -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
+    <mxCell id="loc_gx" value="🛡️ Great Expectations (validate_quality.py)&#xa;Local verification of schema, ranges &amp; nulls&#xa;Guarantees zero-defect load to PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#10B981;strokeColor=#047857;strokeWidth=1.5;fontColor=#FFFFFF;fontStyle=1;fontSize=9;align=center;" vertex="1" parent="box_fetch">
+      <mxGeometry x="385" y="30" width="360" height="45" as="geometry" />
+    </mxCell>
 
-    <!-- Fuentes → Lightsail scripts -->
-    <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="src_gfw" target="ls_sync" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="src_wb" target="ls_wb" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="src_fao" target="ls_fao" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="src_geo" target="ls_geo" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <!-- NOTEBOOKS -->
+    <mxCell id="box_notebooks" value="Jupyter Notebook Pipeline (Data Transformation &amp; EDA)" style="swimlane;startSize=22;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=1;fontStyle=1;fontSize=10;fontColor=#92400E;rounded=1;arcSize=4;" vertex="1" parent="zone_local">
+      <mxGeometry x="20" y="145" width="760" height="150" as="geometry" />
+    </mxCell>
 
-    <!-- batch orquesta los scripts -->
-    <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="ls_batch" target="ls_sync" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="ls_batch" target="ls_wb" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="ls_batch" target="ls_fao" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="ls_batch" target="ls_geo" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="ls_batch" target="ls_s3" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="nb_eda14" value="01–04 Extended EDAs&#xa;• 01_eda_gfw.ipynb (Hotspots, Spatial Hexbins)&#xa;• 02_eda_worldbank.ipynb (GDP Correlation Heatmaps)&#xa;• 03_eda_faostat.ipynb (Commodity Area &amp; YoY)&#xa;• 04_eda_geonames.ipynb (Pop Density &amp; Distance)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FCD34D;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_notebooks">
+      <mxGeometry x="15" y="32" width="350" height="100" as="geometry" />
+    </mxCell>
 
-    <!-- Lightsail → S3 -->
-    <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;" edge="1" source="ls_s3" target="s3_gfw" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;" edge="1" source="ls_s3" target="s3_ext" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="nb_etl5" value="05_etl_pipeline.ipynb (Unified Master Pipeline)&#xa;• Multi-source ETL &amp; Haversine Distance computation&#xa;• Incremental merge and upsert logic&#xa;• 8 Key Analyses implementation (CO2 Emissions IPCC,&#xa;  Protected areas overlap, Annual/Monthly/Seasonal rates)&#xa;• Data quality gating &amp; Star Schema Migration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.5;fontColor=#78350F;fontStyle=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_notebooks">
+      <mxGeometry x="385" y="32" width="360" height="100" as="geometry" />
+    </mxCell>
 
-    <!-- S3 → Proxy -->
-    <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="s3_gfw" target="proxy" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="s3_ext" target="proxy" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <!-- POSTGRESQL STAR SCHEMA -->
+    <mxCell id="box_db" value="PostgreSQL Data Warehouse (Star Schema Architecture)" style="swimlane;startSize=24;fillColor=#EDF5FC;strokeColor=#2E73B8;strokeWidth=1.5;fontStyle=1;fontSize=11;fontColor=#2E73B8;rounded=1;arcSize=4;" vertex="1" parent="zone_local">
+      <mxGeometry x="20" y="310" width="760" height="340" as="geometry" />
+    </mxCell>
 
-    <!-- Proxy → fetch_from_proxy -->
-    <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;" edge="1" source="proxy" target="nb_fetch" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <!-- FACT TABLE -->
+    <mxCell id="db_fact" value="fact_alerts (~1.5M Records)&#xa;---------------------------------------&#xa;🔑 alert_id (PK, BIGINT)&#xa;🔗 date_id (FK)&#xa;🔗 location_id (FK)&#xa;🔗 driver_id (FK)&#xa;🔗 land_cover_id (FK)&#xa;🔗 confidence_id (FK)&#xa;🔗 econ_id (FK) ★&#xa;• latitude · longitude&#xa;• tree_cover_pct&#xa;• is_primary_forest&#xa;• protected_area&#xa;• is_soy_area&#xa;• dist_place_km ★" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E73B8;strokeColor=#1B4370;strokeWidth=1.5;fontColor=#FFFFFF;fontStyle=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_db">
+      <mxGeometry x="270" y="70" width="220" height="230" as="geometry" />
+    </mxCell>
 
-    <!-- CSV histórico → nb05 directo -->
-    <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="src_csv" target="nb_fetch" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <!-- DIMENSIONS -->
+    <mxCell id="dim_date" value="dim_date&#xa;-------------------&#xa;🔑 date_id (PK)&#xa;• date · year · month&#xa;• week · day_of_week" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="15" y="35" width="160" height="65" as="geometry" />
+    </mxCell>
 
-    <!-- fetch → EDA notebooks -->
-    <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="nb_fetch" target="nb01" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="nb_fetch" target="nb02" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="nb_fetch" target="nb03" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="nb_fetch" target="nb04" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="dim_loc" value="dim_location&#xa;-------------------&#xa;🔑 location_id (PK)&#xa;• country_code · name&#xa;• adm1_code · name" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="15" y="110" width="160" height="65" as="geometry" />
+    </mxCell>
 
-    <!-- EDA notebooks → nb05 -->
-    <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="nb01" target="nb05" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="nb02" target="nb05" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="nb03" target="nb05" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="nb04" target="nb05" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="dim_drv" value="dim_driver&#xa;-------------------&#xa;🔑 driver_id (PK)&#xa;• driver_name&#xa;(Commodity, Shifting, etc.)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="15" y="185" width="160" height="60" as="geometry" />
+    </mxCell>
 
-    <!-- nb05 → PostgreSQL -->
-    <mxCell id="e24" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="nb05" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="dim_lc" value="dim_land_cover&#xa;-------------------&#xa;🔑 land_cover_id (PK)&#xa;• land_cover_class" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="15" y="255" width="160" height="55" as="geometry" />
+    </mxCell>
 
-    <!-- PostgreSQL → Visualizaciones -->
-    <mxCell id="e25" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="db_fact" target="viz_dash" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="dim_conf" value="dim_confidence&#xa;-------------------&#xa;🔑 confidence_id (PK)&#xa;• confidence · is_high" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#93C5FD;strokeWidth=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="585" y="35" width="160" height="55" as="geometry" />
+    </mxCell>
 
-    <!-- GitHub Actions → Lightsail -->
-    <mxCell id="e26" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;strokeWidth=2;" edge="1" source="cicd_deploy" target="ls_batch" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-    <mxCell id="e27" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#b85450;dashed=1;" edge="1" source="cicd_batch" target="ls_batch" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="dim_econ" value="dim_economic_context ★&#xa;-------------------&#xa;🔑 econ_id (PK)&#xa;• country_code · year&#xa;• gdp_usd · agri_land_pct&#xa;• soy_production_t · soy_ha" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;strokeWidth=1.5;fontColor=#065F46;fontStyle=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="585" y="100" width="160" height="85" as="geometry" />
+    </mxCell>
 
-    <!-- Leyenda -->
-    <mxCell id="legend" value="★ = Nueva dimensión (segunda entrega)&#xa;Línea sólida = flujo de datos&#xa;Línea punteada = llamada/orquestación" style="text;html=1;strokeColor=#666666;fillColor=#f5f5f5;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#333333;" vertex="1" parent="1">
-      <mxGeometry x="40" y="640" width="240" height="60" as="geometry" />
+    <mxCell id="dim_places" value="dim_places ★&#xa;-------------------&#xa;🔑 place_id (PK)&#xa;• place_name · population&#xa;• latitude · longitude" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;strokeWidth=1.5;fontColor=#065F46;fontStyle=1;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="box_db">
+      <mxGeometry x="585" y="195" width="160" height="70" as="geometry" />
+    </mxCell>
+
+    <mxCell id="db_star_badge" value="★ Star Schema Extensions (Delivery 2)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#059669;fontStyle=1;" vertex="1" parent="box_db">
+      <mxGeometry x="545" y="295" width="200" height="20" as="geometry" />
+    </mxCell>
+
+    <!-- VISUALIZATIONS & SCIENTIFIC ANALYSES -->
+    <mxCell id="box_viz" value="Environmental &amp; Socio-Economic Intelligence (ODS 13 &amp; 15)" style="swimlane;startSize=24;fillColor=#FAF5FF;strokeColor=#A855F7;strokeWidth=1.5;fontStyle=1;fontSize=11;fontColor=#6B21A8;rounded=1;arcSize=4;" vertex="1" parent="zone_local">
+      <mxGeometry x="20" y="665" width="760" height="255" as="geometry" />
+    </mxCell>
+
+    <mxCell id="viz_spatial" value="🗺️ Spatial Analysis &amp; Hotspots&#xa;• High-density loss clusters (Santa Cruz, Caquetá)&#xa;• Haversine distance to closest populated places&#xa;• Deforestation inside IUCN Protected Areas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E9D5FF;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_viz">
+      <mxGeometry x="15" y="35" width="350" height="60" as="geometry" />
+    </mxCell>
+
+    <mxCell id="viz_temporal" value="📈 Temporal Rates &amp; Acceleration&#xa;• Annual, Monthly &amp; Seasonal deforestation pace&#xa;• Dry vs Wet season dynamics&#xa;• Peaks matching agricultural clearance cycles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E9D5FF;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_viz">
+      <mxGeometry x="385" y="35" width="360" height="60" as="geometry" />
+    </mxCell>
+
+    <mxCell id="viz_co2" value="🔥 IPCC Tier 1 Carbon Emissions&#xa;• Aboveground + Belowground biomass carbon estimation&#xa;• Millions of metric tons CO2 equivalent released&#xa;• Primary forest vs secondary degradation carbon impact" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E9D5FF;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_viz">
+      <mxGeometry x="15" y="105" width="350" height="65" as="geometry" />
+    </mxCell>
+
+    <mxCell id="viz_causal" value="🌾 Causal Agricultural &amp; Economic Drivers&#xa;• Cross-correlation: Alerts vs Soy area &amp; Cattle inventory&#xa;• GDP growth vs Primary forest loss rates&#xa;• Demographic pressure &amp; Road/River proxy analysis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E9D5FF;strokeWidth=1;fontSize=9;align=left;spacingLeft=10;" vertex="1" parent="box_viz">
+      <mxGeometry x="385" y="105" width="360" height="65" as="geometry" />
+    </mxCell>
+
+    <mxCell id="viz_dash_png" value="📊 Published Artifacts: data/results/dashboard_principal.png · fig_protected_areas.png · fig_alertas_vs_tierra_agricola.png" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A855F7;strokeColor=#7E22CE;strokeWidth=1;fontColor=#FFFFFF;fontStyle=1;fontSize=9;align=center;" vertex="1" parent="box_viz">
+      <mxGeometry x="15" y="185" width="730" height="40" as="geometry" />
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- RELATIONSHIP EDGES (DATA & ORCHESTRATION FLOWS)                        -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Sources to Lightsail Batch -->
+    <mxCell id="flow_src_ls" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#64748B;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="zone_sources" target="box_lightsail" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- CI/CD to Lightsail -->
+    <mxCell id="flow_deploy" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#0F172A;strokeWidth=2;dashed=1;exitX=1;exitY=0.3;entryX=0.3;entryY=1;" edge="1" source="wf_deploy" target="box_lightsail" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+    <mxCell id="flow_batch_trig" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#ED7100;strokeWidth=2;dashed=1;exitX=1;exitY=0.5;entryX=0.6;entryY=1;" edge="1" source="wf_batch" target="box_lightsail" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Lightsail to S3 -->
+    <mxCell id="flow_up_s3" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#3F8624;strokeWidth=2.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="sc_s3up" target="s3_bucket" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- S3 to Proxy -->
+    <mxCell id="flow_s3_proxy" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#8C4FFF;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="box_s3" target="proxy_ep" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Proxy to Local Fetch -->
+    <mxCell id="flow_proxy_fetch" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#8C4FFF;strokeWidth=2.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="proxy_ep" target="loc_fetch" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Fetch to Local Great Expectations -->
+    <mxCell id="flow_fetch_gx" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#10B981;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="loc_fetch" target="loc_gx" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- GX to Notebook 05 -->
+    <mxCell id="flow_gx_nb" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#D97706;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="loc_gx" target="nb_etl5" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- EDA Notebooks to 05 -->
+    <mxCell id="flow_eda_etl" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#F59E0B;strokeWidth=1.5;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="nb_eda14" target="nb_etl5" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Notebook 05 to PostgreSQL Fact Table -->
+    <mxCell id="flow_etl_db" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#2E73B8;strokeWidth=2.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="nb_etl5" target="db_fact" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- PostgreSQL to Visualizations -->
+    <mxCell id="flow_db_viz" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#A855F7;strokeWidth=2.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="db_fact" target="box_viz" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Internal Star Schema Foreign Key Connectors -->
+    <mxCell id="fk_date" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#93C5FD;strokeWidth=1;exitX=1;exitY=0.5;entryX=0;entryY=0.2;" edge="1" source="dim_date" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="fk_loc" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#93C5FD;strokeWidth=1;exitX=1;exitY=0.5;entryX=0;entryY=0.4;" edge="1" source="dim_loc" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="fk_drv" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#93C5FD;strokeWidth=1;exitX=1;exitY=0.5;entryX=0;entryY=0.6;" edge="1" source="dim_drv" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="fk_lc" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#93C5FD;strokeWidth=1;exitX=1;exitY=0.5;entryX=0;entryY=0.8;" edge="1" source="dim_lc" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <mxCell id="fk_conf" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#93C5FD;strokeWidth=1;exitX=0;exitY=0.5;entryX=1;entryY=0.2;" edge="1" source="dim_conf" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="fk_econ" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#10B981;strokeWidth=1.5;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" source="dim_econ" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+    <mxCell id="fk_places" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#10B981;strokeWidth=1.5;exitX=0;exitY=0.5;entryX=1;entryY=0.8;" edge="1" source="dim_places" target="db_fact" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+    <!-- Nginx to Airflow Webserver Route -->
+    <mxCell id="flow_nginx_af" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#8C4FFF;strokeWidth=1.5;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="ls_nginx" target="af_webserver" parent="1">
+      <mxGeometry relative="1" as="geometry" />
     </mxCell>
 
   </root>
