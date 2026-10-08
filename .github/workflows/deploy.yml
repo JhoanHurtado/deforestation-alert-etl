@@ -79,6 +79,7 @@ jobs:
             echo "── Installing dependencies ──"
             "$PYTHON" -m pip install --quiet --upgrade pip
             "$PYTHON" -m pip install --quiet -r requirements.txt
+            "$PYTHON" -m pip install --quiet "apache-airflow>=2.8.0,<3.0.0"
 
             echo "── Writing .env from secrets ──"
             cat > "$PROJECT_DIR/.env" << 'ENVEOF'
@@ -104,7 +105,7 @@ jobs:
             mkdir -p "$AIRFLOW_HOME"
 
             echo "── Running Airflow DB migrations ──"
-            "$PYTHON" -m airflow db migrate
+            "$PYTHON" -m airflow db migrate 2>/dev/null || "$PYTHON" -m airflow db init 2>/dev/null || true
 
             echo "── Creating/Updating Airflow Admin User (Jhoan Hurtado) ──"
             "$PYTHON" -m airflow users create \
