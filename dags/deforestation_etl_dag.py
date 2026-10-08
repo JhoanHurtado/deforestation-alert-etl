@@ -12,6 +12,9 @@ Orden:
   4. run_etl_pipeline                         (notebook ejecutado con nbconvert)
 """
 
+import os
+import sys
+from pathlib import Path
 from datetime import datetime, timedelta
 from airflow import DAG
 try:
@@ -19,9 +22,10 @@ try:
 except ImportError:
     from airflow.providers.standard.operators.bash import BashOperator
 
-
-PROJECT = "/home/ubuntu/deforestation-alert-etl"
-PYTHON  = f"{PROJECT}/venv/bin/python"
+# Detección dinámica de ruta del proyecto: funciona en local (Mac) y en Lightsail
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+PROJECT = os.getenv("PROJECT_DIR", str(PROJECT_DIR))
+PYTHON  = sys.executable
 
 default_args = {
     "owner": "etl-g51",

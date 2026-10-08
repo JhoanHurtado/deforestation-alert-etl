@@ -447,17 +447,26 @@ jupyter notebook
 
 ---
 
-### Opción C — Ejecución local del DAG simulando Apache Airflow
+### Opción C — Lanzar Apache Airflow Web de forma 100% Local
 
-Para probar el flujo del DAG en tu máquina local sin levantar servicios pesados:
+Para abrir la interfaz web de Airflow en tu máquina local (`http://localhost:9179`), monitorear el DAG y disparar ejecuciones idénticas a las del servidor sin necesidad de conectarte por SSH:
 
 ```bash
-# Probar una tarea individual del DAG (ej. sync_gfw_alerts)
-airflow tasks test deforestation_etl_dag sync_gfw_alerts 2026-10-08
-
-# O ejecutar el DAG completo localmente
-airflow dags test deforestation_etl_dag 2026-10-08
+# 1. Ejecutar el script que inicializa el entorno local y levanta Airflow Standalone
+./start_airflow_local.sh
 ```
+
+- **URL Web Local**: `http://localhost:9179`
+- **Usuario**: `admin`
+- **Contraseña**: `admin`
+- El script aísla la base de datos y logs en la carpeta local `airflow_local/`, detecta automáticamente las rutas relativas del proyecto y carga el DAG `deforestation_etl_dag` sin alterar tus configuraciones globales.
+
+> Si prefieres probar únicamente la ejecución por consola sin interfaz web:
+> ```bash
+> export AIRFLOW_HOME="$(pwd)/airflow_local"
+> export AIRFLOW__CORE__DAGS_FOLDER="$(pwd)/dags"
+> airflow dags test deforestation_etl_dag 2026-10-08
+> ```
 
 ### Opción D — Orquestación automática en Lightsail (Airflow / Cron 22:00)
 
