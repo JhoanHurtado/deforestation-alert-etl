@@ -36,7 +36,8 @@ except ImportError:
     pass
 
 PROXY_URL = os.getenv("DATA_PROXY_URL", "https://docs.jhoanhurtado.com").rstrip("/")
-PREFIX    = os.getenv("S3_PREFIX", "deforestacion-alert-etl").strip("/")
+raw_prefix = os.getenv("S3_PREFIX")
+PREFIX    = raw_prefix.strip("/") if raw_prefix else "deforestacion-alert-etl"
 DATA_ROOT = Path(__file__).parent.parent / "data"
 
 # Archivos reales a descargar: (ruta_s3_relativa_dentro_del_prefijo, ruta_local)
