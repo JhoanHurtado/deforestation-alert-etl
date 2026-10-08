@@ -34,10 +34,27 @@ jobs:
             PROJECT_DIR="$HOME/deforestation-alert-etl"
             VENV_DIR="$PROJECT_DIR/venv"
             PYTHON="$VENV_DIR/bin/python"
+            REPO_URL="https://github.com/${{ github.repository }}.git"
+            BRANCH="${{ github.ref_name }}"
 
-            echo "── Pulling latest code ──"
-            cd "$PROJECT_DIR"
-            git pull origin main
+            echo "── Ensuring system tools (git, python3-venv) ──"
+            if ! command -v git &> /dev/null || ! python3 -m venv --help &> /dev/null; then
+              echo "Installing basic system packages..."
+              sudo apt-get update -qq && sudo apt-get install -y -qq git python3 python3-venv python3-pip
+            fi
+
+            echo "── Ensuring project directory and code ──"
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+              echo "Project directory does not exist. Cloning $REPO_URL ($BRANCH)..."
+              git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR" || git clone "$REPO_URL" "$PROJECT_DIR"
+              cd "$PROJECT_DIR"
+            else
+              echo "Project directory exists. Pulling latest code for $BRANCH..."
+              cd "$PROJECT_DIR"
+              git fetch origin
+              git checkout "$BRANCH" 2>/dev/null || true
+              git pull origin "$BRANCH" || git pull origin main || true
+            fi
 
             echo "── Creating venv if needed ──"
             if [ ! -f "$PYTHON" ]; then
