@@ -128,9 +128,9 @@ El pipeline está orquestado mediante **Apache Airflow**, ejecutándose automát
 
 ### Visualización del DAG (`deforestation_etl_dag`)
 
-![Apache Airflow DAG](docs/img/airflow_dag.png)
+![Apache Airflow DAG](docs/img/deforestation_etl_dag-graph.png)
 
-> **Ruta de imagen git compatible:** [`docs/img/airflow_dag.png`](docs/img/airflow_dag.png) *(puedes actualizar esta captura directamente sustituyendo dicho archivo en el repositorio)*.
+> **Ruta de imagen git compatible:** [`docs/img/deforestation_etl_dag-graph.png`](docs/img/deforestation_etl_dag-graph.png) *(puedes actualizar esta captura directamente sustituyendo dicho archivo en el repositorio)*.
 
 ### Acceso a la interfaz Web de Airflow
 - **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` (o alternativamente `https://airflow-etl.jhoanhurtado.com`) redirigido mediante Nginx reverse proxy al puerto local **9179**.
@@ -203,7 +203,7 @@ deforestation-alert-etl/
 │   ├── setup.md                # Instrucciones detalladas de configuración
 │   ├── datasets_externos.md    # Documentación de fuentes externas
 │   └── img/
-│       └── airflow_dag.png     # Captura de pantalla de la interfaz de Airflow
+│       └── deforestation_etl_dag-graph.png     # Captura de pantalla de la interfaz de Airflow
 ├── notebooks/
 │   ├── 01_eda_gfw.ipynb        # EDA del dataset GFW raw
 │   ├── 02_eda_worldbank.ipynb  # EDA indicadores World Bank
