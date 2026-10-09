@@ -478,78 +478,119 @@ Para forzar manualmente la ejecución:
 
 ## Despliegue en AWS Lightsail
 
-### Configuración inicial del servidor y Nginx Reverse Proxy
+La infraestructura de producción está alojada en una instancia **AWS Lightsail** (Ubuntu 22.04 LTS), ejecutando los servicios de **Apache Airflow** aislados mediante `systemd` y expuestos a través de **Nginx Reverse Proxy** con HTTPS.
+
+### 1. Configuración del Servidor y Dependencias
+
+Ejecuta estos pasos en la terminal de la instancia Lightsail:
 
 ```bash
-# 1. Conectar al servidor
-ssh ubuntu@<LIGHTSAIL_IP>
+# 1. Conectar al servidor mediante SSH
+ssh -i <tu-llave.pem> ubuntu@<LIGHTSAIL_IP>
 
-# 2. Instalar dependencias del sistema y Nginx
-sudo apt update && sudo apt install -y python3.12 python3.12-venv git nginx
+# 2. Actualizar paquetes del sistema e instalar utilidades base
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3.12 python3.12-venv python3-pip git nginx curl
 
-# 3. Clonar el repositorio
-git clone https://github.com/<tu-usuario>/deforestation-alert-etl.git
+# 3. Configuración de Swap (Recomendado para instancias Lightsail de 2 GB RAM)
+sudo fallocate -l 6G /swapfile2
+sudo chmod 600 /swapfile2
+sudo mkswap /swapfile2
+sudo swapon /swapfile2
+echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# 4. Clonar el repositorio oficial
+git clone https://github.com/JhoanHurtado/deforestation-alert-etl.git
 cd deforestation-alert-etl
 
-# 4. Crear venv e instalar dependencias
+# 5. Crear el entorno virtual e instalar requerimientos
 python3.12 -m venv venv
+venv/bin/pip install --upgrade pip
 venv/bin/pip install -r requirements.txt
 
-# 5. Configurar .env con las credenciales
+# 6. Configurar variables de entorno y directorios de logs
 cp .env.example .env
-nano .env   # completar con valores reales
-
-# 6. Crear directorio de logs
+nano .env   # Completar con credenciales reales (PostgreSQL, S3, GFW, etc.)
 mkdir -p ~/logs
+```
 
-### Secrets requeridos en GitHub
+### 2. Configuración de Nginx Reverse Proxy (Puerto 9179 → Subdominio)
 
-Ir a **Settings → Secrets and variables → Actions** y agregar:
+Configura Nginx para enrutar el tráfico del subdominio `airflow.jhoanhurtado.com` hacia el Webserver de Airflow que escucha en el puerto interno `9179`:
 
-| Secret | Valor |
-|--------|-------|
-| `LIGHTSAIL_HOST` | IP pública del servidor Lightsail |
-| `LIGHTSAIL_USER` | Usuario SSH (`ubuntu`) |
-| `LIGHTSAIL_SSH_KEY` | Contenido de la clave privada SSH (`.pem`) |
-| `GFW_API_KEY` | API key de Global Forest Watch |
-| `PG_USER` / `PG_PASSWORD` / `PG_HOST` / `PG_PORT` / `PG_DB` | Conexión PostgreSQL |
-| `S3_BUCKET` | Nombre del bucket S3 |
-| `S3_PREFIX` | `deforestacion-alert-etl/` |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | AWS credentials |
-| `DATA_PROXY_URL` | `https://docs.jhoanhurtado.com` |
+```bash
+sudo tee /etc/nginx/sites-available/airflow.conf << 'EOF'
+server {
+    listen 80;
+    server_name airflow.jhoanhurtado.com airflow-etl.jhoanhurtado.com;
+
+    location / {
+        proxy_pass http://localhost:9179;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+EOF
+
+# Habilitar sitio y recargar Nginx
+sudo ln -sf /etc/nginx/sites-available/airflow.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+> 🔒 **HTTPS / Certificado SSL**: Para asegurar la conexión con SSL gratuito de Let's Encrypt:
+> ```bash
+> sudo apt install -y certbot python3-certbot-nginx
+> sudo certbot --nginx -d airflow.jhoanhurtado.com
+> ```
+
+---
+
+### Secrets requeridos en GitHub Actions
+
+Para que los flujos de CI/CD puedan conectarse al servidor y ejecutar el pipeline, deben configurarse los siguientes secrets en **Settings → Secrets and variables → Actions**:
+
+| Secret | Descripción | Ejemplo / Valor |
+|--------|-------------|-----------------|
+| `LIGHTSAIL_HOST` | IP pública o dominio del servidor Lightsail | `18.234.xxx.xxx` |
+| `LIGHTSAIL_USER` | Usuario SSH del sistema | `ubuntu` |
+| `LIGHTSAIL_SSH_KEY` | Clave privada SSH sin contraseña | Contenido de `~/.ssh/id_rsa` o archivo `.pem` |
+| `GFW_API_KEY` | Token API de Global Forest Watch | `eyJhbGciOiJIUzI1NiIsIn...` |
+| `PG_HOST` / `PG_PORT` | Host y puerto de PostgreSQL | `localhost` / `5432` |
+| `PG_USER` / `PG_PASSWORD` | Usuario y contraseña de PostgreSQL | `etl_user` / `********` |
+| `PG_DB` | Nombre de la base de datos DWH | `deforestation_dwh` |
+| `S3_BUCKET` | Nombre del Bucket en Amazon S3 | `deforestacion-alert-etl` |
+| `S3_PREFIX` | Carpeta/prefijo dentro del bucket S3 | `deforestacion-alert-etl/` |
+| `AWS_ACCESS_KEY_ID` | Access Key IAM con permisos en S3 | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | Secret Key IAM | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `AWS_REGION` | Región AWS del bucket S3 | `us-east-1` |
+| `DATA_PROXY_URL` | URL del proxy HTTPS para descarga | `https://docs.jhoanhurtado.com` |
 
 ---
 
 ## GitHub Actions CI/CD
 
-### `deploy.yml` — Deploy automático y aprovisionamiento de Airflow
+El repositorio cuenta con dos flujos de trabajo automatizados en [`.github/workflows/`](.github/workflows/):
 
-Se activa en cada push a `main` que modifique archivos en `scripts/`, `dags/`, `notebooks/`, `requirements.txt` o `deploy.yml`.
+### 1. `deploy.yml` — Despliegue Continuo y Provisión de Airflow
+Se dispara automáticamente con cada `push` a la rama `main` que modifique scripts, DAGs o dependencias:
+1. **Conexión SSH**: Accede de forma segura a la instancia Lightsail vía SSH.
+2. **Sincronización Git**: Ejecuta `git pull origin main` y actualiza paquetes (`pip install -r requirements.txt`).
+3. **Inyección de Secretos**: Genera el archivo `.env` en el servidor con los secrets de GitHub.
+4. **Inicialización y Migración de Airflow**:
+   - Ejecuta migraciones de base de datos (`airflow db migrate`).
+   - Aprovisiona el usuario administrador (`admin:admin` con rol `Admin`).
+5. **Configuración de Servicios Systemd**:
+   - `airflow-webserver.service` en el puerto **9179**.
+   - `airflow-scheduler.service` para la orquestación programada.
+6. **Verificación de Salud**: Valida que los servicios estén activos (`active (running)`) y el puerto 9179 respondiendo.
 
-**Pasos automatizados:**
-1. Conecta al servidor Lightsail por SSH.
-2. Hace `git pull origin main` y actualiza dependencias (`pip install -r requirements.txt`).
-3. Escribe el archivo `.env` desde los secrets de GitHub.
-4. **Configura e inicializa Apache Airflow automáticamente**:
-   - Corre las migraciones de base de datos (`airflow db migrate`).
-   - Crea/actualiza el usuario administrador:
-     - **Usuario:** `admin` | **Contraseña:** `admin`
-     - **Nombre:** Jhoan Hurtado | **Rol:** `Admin` | **Email:** `jhoanezequielh@gmail.com`
-   - Configura y activa los servicios persistentes `systemd`:
-     - `airflow-webserver.service` en el **puerto 9179** (`http://<LIGHTSAIL_IP>:9179` / `https://airflow.jhoanhurtado.com`).
-     - `airflow-scheduler.service` para ejecución automática diaria a las 22:00 (10:00 PM).
-5. Instala el cron job de respaldo para `batch_download.py`.
-6. Verifica que los servicios de Airflow estén activos y el puerto 9179 esté escuchando.
-
-### `batch.yml` — Ejecución diaria programada
-
-Se activa automáticamente a las 22:00 (10:00 PM) o manualmente desde la UI de GitHub Actions.
-
-**Acciones:**
-- Dispara el DAG de Airflow (`airflow dags trigger deforestation_etl_dag`).
-- Si Airflow no estuviera disponible, ejecuta automáticamente el script fallback `batch_download.py`.
-- Soporta parámetros opcionales (`skip_gfw`, `skip_upload`).
-
+### 2. `batch.yml` — Ejecución Diaria Programada
+Se activa automáticamente todos los días a las **22:00 (10:00 PM)** (`0 22 * * *`) o manualmente vía `workflow_dispatch`:
+- **Disparo del DAG**: Ejecuta `airflow dags trigger deforestation_etl_dag`.
+- **Mecanismo de Respaldo**: En caso de indisponibilidad temporal de Airflow, ejecuta automáticamente el script resiliente `batch_download.py` con subida a S3 y validación de calidad.
 
 ---
 
