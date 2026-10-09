@@ -223,8 +223,11 @@ deforestation-alert-etl/
 │   ├── upload_to_s3.py         # Sube CSVs al bucket S3 (prefijo deforestacion-alert-etl/)
 │   ├── fetch_from_proxy.py     # Descarga CSVs desde https://docs.jhoanhurtado.com
 │   └── gfw_signup.py           # Registro y obtención de API key GFW
+├── config/
+│   └── airflow_local.cfg       # Configuración base de desarrollo para Apache Airflow local
 ├── .env.example                # Plantilla de variables de entorno
 ├── .gitignore
+├── start_airflow_local.sh      # Script 100% automático para inicializar y lanzar Airflow localmente
 ├── requirements.txt
 └── README.md
 ```

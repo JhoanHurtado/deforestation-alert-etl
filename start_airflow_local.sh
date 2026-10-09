@@ -27,13 +27,14 @@ echo "=================================================="
 
 mkdir -p "$AIRFLOW_HOME"
 
-# Copiar configuración base del repositorio si no existe aún
-if [ -f "$SCRIPT_DIR/config/airflow_local.cfg" ] && [ ! -f "$AIRFLOW_HOME/airflow.cfg" ]; then
+# Sincronizar configuración base del repositorio
+if [ -f "$SCRIPT_DIR/config/airflow_local.cfg" ]; then
     cp "$SCRIPT_DIR/config/airflow_local.cfg" "$AIRFLOW_HOME/airflow.cfg"
 fi
 
-# Configurar contraseña para SimpleAuthManager y Standalone
+# Configurar contraseña para SimpleAuthManager y Standalone (admin / admin)
 echo '{"admin": "admin"}' > "$AIRFLOW_HOME/simple_auth_manager_passwords.json"
+echo '{"admin": "admin"}' > "$AIRFLOW_HOME/simple_auth_manager_passwords.json.generated"
 echo "admin" > "$AIRFLOW_HOME/standalone_admin_password.txt"
 
 # Inicializar DB si no existe
