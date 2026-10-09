@@ -158,6 +158,7 @@ jobs:
             Group=ubuntu
             Type=simple
             WorkingDirectory=/home/ubuntu/deforestation-alert-etl
+            Environment="PATH=/home/ubuntu/deforestation-alert-etl/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             Environment="AIRFLOW_HOME=/home/ubuntu/airflow"
             Environment="AIRFLOW__CORE__DAGS_FOLDER=/home/ubuntu/deforestation-alert-etl/dags"
             Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
@@ -206,6 +207,7 @@ jobs:
           script: |
             PROJECT_DIR="$HOME/deforestation-alert-etl"
             PYTHON="$PROJECT_DIR/venv/bin/python"
+            export PATH="$PROJECT_DIR/venv/bin:$PATH"
             export AIRFLOW_HOME="$HOME/airflow"
             export AIRFLOW__CORE__DAGS_FOLDER="$PROJECT_DIR/dags"
 
@@ -219,20 +221,25 @@ jobs:
             sudo systemctl is-active airflow && echo "airflow: ACTIVE" || echo "airflow: INACTIVE"
 
             echo "── Waiting for Port 9179 to bind (up to 30s) ──"
+            PORT_READY=false
             for i in $(seq 1 15); do
               if sudo ss -tulpn | grep -q 9179; then
                 echo "Port 9179 is active and listening!"
+                PORT_READY=true
                 break
               fi
               echo "Waiting for port 9179 ($i/15)..."
               sleep 2
             done
 
-            if ! sudo ss -tulpn | grep -q 9179; then
-              echo "=== Service logs from journalctl ==="
-              sudo journalctl -u airflow -n 30 --no-pager || true
+            if [ "$PORT_READY" = "false" ]; then
+              echo "=== Error: Port 9179 did not bind. Service logs from journalctl ==="
+              sudo journalctl -u airflow -n 50 --no-pager || true
+              exit 1
             fi
 
+            echo "── Waiting for DAG processor to serialize DAGs ──"
+            sleep 5
             echo "── Airflow Loaded DAGs ──"
             "$PYTHON" -m airflow dags list
 
