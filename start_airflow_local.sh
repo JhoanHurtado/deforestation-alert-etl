@@ -9,6 +9,9 @@ export AIRFLOW_HOME="$SCRIPT_DIR/airflow_local"
 export AIRFLOW__CORE__DAGS_FOLDER="$SCRIPT_DIR/dags"
 export AIRFLOW__CORE__LOAD_EXAMPLES="False"
 export AIRFLOW__WEBSERVER__WEB_SERVER_PORT="9179"
+export AIRFLOW__API__PORT="9179"
+export AIRFLOW__API__HOST="127.0.0.1"
+export AIRFLOW__API__BASE_URL="http://127.0.0.1:9179"
 export PROJECT_DIR="$SCRIPT_DIR"
 
 # Activar venv si existe
