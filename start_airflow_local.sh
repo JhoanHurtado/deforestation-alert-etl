@@ -12,6 +12,8 @@ export AIRFLOW__WEBSERVER__WEB_SERVER_PORT="9179"
 export AIRFLOW__API__PORT="9179"
 export AIRFLOW__API__HOST="127.0.0.1"
 export AIRFLOW__API__BASE_URL="http://127.0.0.1:9179"
+export AIRFLOW__CORE__EXECUTION_API_SERVER_URL="http://127.0.0.1:9179/execution/"
+export AIRFLOW__API_AUTH__JWT_SECRET="defor_etl_jwt_secret_key_fixed_token_2026_secure"
 export PROJECT_DIR="$SCRIPT_DIR"
 
 # Activar venv si existe
