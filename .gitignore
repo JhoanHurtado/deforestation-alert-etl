@@ -24,6 +24,7 @@ build/
 # ── Jupyter ──────────────────────────────────────────────────
 .ipynb_checkpoints/
 */.ipynb_checkpoints/
+*_executed.ipynb
 
 # ── Datos grandes — NO subir al repo (exclusión total de datasets) ──
 *.csv
@@ -56,6 +57,9 @@ docs/Project*.pdf
 !.github/
 !.github/workflows/
 !.github/workflows/*.yml
+
+# ── Airflow Local (ignorar carpeta local de ejecuciones y logs) ──
+airflow_local/
 
 # ── Logs y temporales ────────────────────────────────────────
 *.log

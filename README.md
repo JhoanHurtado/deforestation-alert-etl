@@ -223,8 +223,11 @@ deforestation-alert-etl/
 │   ├── upload_to_s3.py         # Sube CSVs al bucket S3 (prefijo deforestacion-alert-etl/)
 │   ├── fetch_from_proxy.py     # Descarga CSVs desde https://docs.jhoanhurtado.com
 │   └── gfw_signup.py           # Registro y obtención de API key GFW
+├── config/
+│   └── airflow_local.cfg       # Configuración base de desarrollo para Apache Airflow local
 ├── .env.example                # Plantilla de variables de entorno
 ├── .gitignore
+├── start_airflow_local.sh      # Script 100% automático para inicializar y lanzar Airflow localmente
 ├── requirements.txt
 └── README.md
 ```
@@ -397,37 +400,78 @@ python scripts/gfw_signup.py
 
 ## Cómo ejecutar el pipeline
 
-### Opción A — Ejecución local inicial rápida (desde Proxy S3)
+### Opción A — Ejecución local completa vía Terminal (Script automatizado)
 
-Para evitar descargar horas de datos desde la API de GFW, se descarga la base inicial consolidada directamente desde el proxy:
+Esta es la forma más rápida y directa de correr todo el pipeline localmente sin abrir interfaces gráficas:
 
 ```bash
-# 1. Descargar datasets consolidados desde el proxy (S3)
+# 1. Asegúrate de tener tu entorno virtual activo y el .env configurado
+source venv/bin/activate
+
+# 2. Descargar los datasets consolidados desde el almacenamiento S3 (vía Proxy HTTPS)
 python scripts/fetch_from_proxy.py
 
-# 2. Validar calidad de datos con Great Expectations
+# 3. (Opcional) Sincronizar alertas adicionales recientes desde la API de GFW
+python scripts/sync_alerts.py --daily
+
+# 4. Validar calidad e integridad de los datos con Great Expectations
 python scripts/validate_quality.py
 
-# 3. Abrir Jupyter y ejecutar notebooks en orden
-jupyter notebook
-# Ejecutar: 01 → 02 → 03 → 04 → 05 (o directamente el notebook 05_etl_pipeline.ipynb)
+# 5. Ejecutar el pipeline ETL completo y cargar los datos a PostgreSQL
+jupyter nbconvert --to notebook --execute notebooks/05_etl_pipeline.ipynb --output notebooks/05_etl_pipeline_executed.ipynb
+
+# 6. Sincronizar resultados a S3 y limpiar archivos locales temporales
+python scripts/upload_to_s3.py
 ```
 
-### Opción B — Ejecución local con sincronización incremental
+---
 
-Si deseas actualizar con alertas recientes desde la API de GFW:
+### Opción B — Ejecución local interactiva paso a paso (Jupyter Notebooks)
+
+Si deseas explorar las transformaciones, diagramas y análisis EDA de forma interactiva:
 
 ```bash
-# Sincroniza únicamente las fechas posteriores a la última alerta local
-python scripts/sync_alerts.py
+# 1. Activar el entorno virtual
+source venv/bin/activate
 
-# Ejecutar el pipeline ETL unificado
-jupyter notebook notebooks/05_etl_pipeline.ipynb
-# La sección 5 del notebook detecta automáticamente los datos nuevos
-# y solo inserta las filas no existentes en la base de datos PostgreSQL
+# 2. Garantizar que los CSVs base existan localmente
+python scripts/fetch_from_proxy.py
+
+# 3. Lanzar Jupyter Notebook
+jupyter notebook
 ```
 
-### Opción C — Orquestación automática en Lightsail (Airflow / Cron 22:00)
+**Orden de ejecución de los notebooks en el navegador:**
+1. `notebooks/01_eda_gfw.ipynb`: Análisis exploratorio de alertas satelitales (GFW).
+2. `notebooks/02_eda_worldbank.ipynb`: Indicadores socioeconómicos del Banco Mundial.
+3. `notebooks/03_eda_faostat.ipynb`: Datos agropecuarios y cultivos de FAOSTAT.
+4. `notebooks/04_eda_geonames.ipynb`: Georreferenciación y proximidad a centros poblados.
+5. `notebooks/05_etl_pipeline.ipynb`: **ETL Unificado**, creación del Star Schema en PostgreSQL y 8 análisis analíticos de negocio.
+
+---
+
+### Opción C — Lanzar Apache Airflow Web de forma 100% Local
+
+Para abrir la interfaz web de Airflow en tu máquina local (`http://localhost:9179`), monitorear el DAG y disparar ejecuciones idénticas a las del servidor sin necesidad de conectarte por SSH:
+
+```bash
+# 1. Ejecutar el script que inicializa el entorno local y levanta Airflow Standalone
+./start_airflow_local.sh
+```
+
+- **URL Web Local**: `http://localhost:9179`
+- **Usuario**: `admin`
+- **Contraseña**: `admin`
+- El script aísla la base de datos y logs en la carpeta local `airflow_local/`, detecta automáticamente las rutas relativas del proyecto y carga el DAG `deforestation_etl_dag` sin alterar tus configuraciones globales.
+
+> Si prefieres probar únicamente la ejecución por consola sin interfaz web:
+> ```bash
+> export AIRFLOW_HOME="$(pwd)/airflow_local"
+> export AIRFLOW__CORE__DAGS_FOLDER="$(pwd)/dags"
+> airflow dags test deforestation_etl_dag 2026-10-08
+> ```
+
+### Opción D — Orquestación automática en Lightsail (Airflow / Cron 22:00)
 
 El servidor Lightsail ejecuta automáticamente todas las noches a las **22:00 (10:00 PM)**:
 - Mediante el scheduler de Apache Airflow (`deforestation_etl_dag`), visible en `https://airflow.jhoanhurtado.com`.
