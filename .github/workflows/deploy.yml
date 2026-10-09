@@ -71,12 +71,12 @@ jobs:
             PIP="$VENV_DIR/bin/pip"
 
             echo "── Creating or repairing virtualenv if needed ──"
-            # Si el venv tiene residuos de airflow 3, recrearlo desde cero
+            # Si el venv tiene residuos de airflow 2 o no tiene airflow 3, recrearlo limpio
             if [ -x "$PYTHON" ]; then
-              if "$PYTHON" -c "import airflow; assert airflow.__version__.startswith('2')" 2>/dev/null; then
-                echo "Airflow 2.x already installed in virtualenv."
+              if "$PYTHON" -c "import airflow; assert airflow.__version__.startswith('3')" 2>/dev/null; then
+                echo "Airflow 3.x already installed in virtualenv."
               else
-                echo "Virtualenv contains incompatible Airflow 3 or is corrupted. Recreating cleanly..."
+                echo "Virtualenv contains old Airflow or is corrupted. Recreating cleanly for Airflow 3..."
                 rm -rf "$VENV_DIR"
               fi
             fi
@@ -90,13 +90,8 @@ jobs:
               fi
             fi
 
-            echo "── Installing dependencies ──"
+            echo "── Installing dependencies (Airflow 3 & ETL) ──"
             "$PYTHON" -m pip install --quiet --upgrade pip
-            # Instalar airflow 2.8.4 con constraints oficiales para Python 3.12
-            PYTHON_VERSION="$($PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")"
-            CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.8.4/constraints-${PYTHON_VERSION}.txt"
-            "$PYTHON" -m pip install "apache-airflow==2.8.4" --constraint "$CONSTRAINT_URL" || \
-            "$PYTHON" -m pip install "apache-airflow>=2.8.0,<3.0.0"
             "$PYTHON" -m pip install -r requirements.txt
 
             echo "── Writing .env from secrets ──"
@@ -115,62 +110,52 @@ jobs:
             DATA_PROXY_URL=${{ secrets.DATA_PROXY_URL }}
             ENVEOF
 
-            echo "── Configuring Apache Airflow (Port 9179) ──"
+            echo "── Configuring Apache Airflow 3 (Port 9179) ──"
             export AIRFLOW_HOME="$HOME/airflow"
             export AIRFLOW__CORE__DAGS_FOLDER="$PROJECT_DIR/dags"
             export AIRFLOW__CORE__LOAD_EXAMPLES="False"
             export AIRFLOW__WEBSERVER__WEB_SERVER_PORT="9179"
+            export AIRFLOW__API__PORT="9179"
+            export AIRFLOW__API__HOST="127.0.0.1"
+            export AIRFLOW__API__BASE_URL="http://127.0.0.1:9179"
             mkdir -p "$AIRFLOW_HOME"
+
+            # Copiar configuración base versionada
+            cp "$PROJECT_DIR/config/airflow_local.cfg" "$AIRFLOW_HOME/airflow.cfg"
+
+            # Configurar credenciales SimpleAuthManager y Standalone (admin / admin)
+            echo '{"admin": "admin"}' > "$AIRFLOW_HOME/simple_auth_manager_passwords.json"
+            echo '{"admin": "admin"}' > "$AIRFLOW_HOME/simple_auth_manager_passwords.json.generated"
+            echo "admin" > "$AIRFLOW_HOME/standalone_admin_password.txt"
 
             echo "── Running Airflow DB migrations ──"
             "$PYTHON" -m airflow db migrate 2>/dev/null || "$PYTHON" -m airflow db init 2>/dev/null || true
 
-            echo "── Creating/Updating Airflow Admin User (Jhoan Hurtado) ──"
-            "$PYTHON" -m airflow users create \
-              --username admin \
-              --firstname Jhoan \
-              --lastname Hurtado \
-              --role Admin \
-              --email jhoanezequielh@gmail.com \
-              --password admin 2>/dev/null || \
-            "$PYTHON" -m airflow users reset-password \
-              --username admin \
-              --password admin 2>/dev/null || true
+            echo "── Stopping legacy Airflow 2 services if active ──"
+            sudo systemctl stop airflow-webserver airflow-scheduler 2>/dev/null || true
+            sudo systemctl disable airflow-webserver airflow-scheduler 2>/dev/null || true
+            sudo rm -f /etc/systemd/system/airflow-webserver.service /etc/systemd/system/airflow-scheduler.service 2>/dev/null || true
 
-            echo "── Setting up systemd services for Airflow ──"
-            sudo tee /etc/systemd/system/airflow-webserver.service > /dev/null << 'UNITEOF'
+            echo "── Setting up unified systemd service for Airflow 3 ──"
+            sudo tee /etc/systemd/system/airflow.service > /dev/null << 'UNITEOF'
             [Unit]
-            Description=Airflow Webserver (Port 9179)
+            Description=Apache Airflow 3 Standalone (FastAPI API Server & Scheduler Port 9179)
             After=network.target
 
             [Service]
             User=ubuntu
             Group=ubuntu
             Type=simple
+            WorkingDirectory=/home/ubuntu/deforestation-alert-etl
             Environment="AIRFLOW_HOME=/home/ubuntu/airflow"
             Environment="AIRFLOW__CORE__DAGS_FOLDER=/home/ubuntu/deforestation-alert-etl/dags"
             Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
-            ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow webserver -p 9179
-            Restart=always
-            RestartSec=5s
-
-            [Install]
-            WantedBy=multi-user.target
-            UNITEOF
-
-            sudo tee /etc/systemd/system/airflow-scheduler.service > /dev/null << 'UNITEOF'
-            [Unit]
-            Description=Airflow Scheduler
-            After=network.target
-
-            [Service]
-            User=ubuntu
-            Group=ubuntu
-            Type=simple
-            Environment="AIRFLOW_HOME=/home/ubuntu/airflow"
-            Environment="AIRFLOW__CORE__DAGS_FOLDER=/home/ubuntu/deforestation-alert-etl/dags"
-            Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
-            ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow scheduler
+            Environment="AIRFLOW__WEBSERVER__WEB_SERVER_PORT=9179"
+            Environment="AIRFLOW__API__PORT=9179"
+            Environment="AIRFLOW__API__HOST=127.0.0.1"
+            Environment="AIRFLOW__API__BASE_URL=http://127.0.0.1:9179"
+            Environment="PROJECT_DIR=/home/ubuntu/deforestation-alert-etl"
+            ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow standalone
             Restart=always
             RestartSec=5s
 
@@ -179,11 +164,11 @@ jobs:
             UNITEOF
 
             sudo systemctl daemon-reload
-            sudo systemctl enable airflow-webserver airflow-scheduler
-            sudo systemctl restart airflow-webserver airflow-scheduler
+            sudo systemctl enable airflow
+            sudo systemctl restart airflow
 
             echo "── Registering & Unpausing DAGs in Airflow ──"
-            # Esperar a que el scheduler registre el DAG en la base de datos
+            sleep 5
             "$PYTHON" -m airflow dags list 2>/dev/null || true
             "$PYTHON" -m airflow dags unpause deforestation_etl_dag 2>/dev/null || true
 
@@ -215,14 +200,13 @@ jobs:
             "$PYTHON" --version
 
             echo "── Checking imports ──"
-            "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy, airflow; print('All imports OK')"
+            "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy, airflow; print(f'Airflow version: {airflow.__version__}')"
 
             echo "── Waiting 5s for services to stabilize ──"
             sleep 5
 
-            echo "── Checking Airflow Services ──"
-            sudo systemctl is-active airflow-webserver && echo "airflow-webserver: ACTIVE" || echo "airflow-webserver: INACTIVE"
-            sudo systemctl is-active airflow-scheduler && echo "airflow-scheduler: ACTIVE" || echo "airflow-scheduler: INACTIVE"
+            echo "── Checking Airflow Service ──"
+            sudo systemctl is-active airflow && echo "airflow: ACTIVE" || echo "airflow: INACTIVE"
 
             echo "── Checking Port 9179 Listening ──"
             sudo ss -tulpn | grep 9179 || echo "Waiting for port 9179 to bind..."
