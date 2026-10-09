@@ -34,90 +34,84 @@ Alineado con **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecosiste
 ### Diagrama de Flujo del Pipeline (Mermaid)
 
 ```mermaid
-flowchart TD
-    %% Subgrafo Fuentes de Datos
-    subgraph SOURCES["🌐 Fuentes de Datos Externas"]
+flowchart LR
+    %% Subgrafo 1: Fuentes de Datos
+    subgraph G1 ["🌐 1. Fuentes Externas"]
         direction TB
-        S1["Global Forest Watch API<br/><i>Alertas Deforestación 2022-2026</i>"]
-        S2["World Bank Open Data API<br/><i>PIB, Tierra Agrícola, Población Rural</i>"]
-        S3["FAO FAOSTAT Bulk CSV<br/><i>Producción Agropecuaria y Soya</i>"]
-        S4["GeoNames Data Dump<br/><i>Localidades Pobladas BOL + COL</i>"]
-        S5["Wikipedia / WDPA Scraping<br/><i>Parques y Reservas Naturales</i>"]
+        S_GFW["🛰️ <b>Global Forest Watch</b><br/><i>API REST (Alertas 2022-2026)</i>"]
+        S_WB["🏛️ <b>World Bank Open Data</b><br/><i>API REST (PIB, Tierra Agrícola)</i>"]
+        S_FAO["🌾 <b>FAO FAOSTAT</b><br/><i>Bulk CSV (Producción y Soya)</i>"]
+        S_GEO["📍 <b>GeoNames</b><br/><i>Data Dump (Localidades BOL/COL)</i>"]
+        S_PA["🏞️ <b>WDPA / Protected Areas</b><br/><i>Web Scraping (Parques Naturales)</i>"]
     end
 
-    %% Subgrafo AWS Cloud
-    subgraph AWS["☁️ Amazon Web Services (AWS Cloud)"]
+    %% Subgrafo 2: AWS Cloud & Orquestación
+    subgraph G2 ["☁️ 2. AWS Lightsail & Orquestación"]
         direction TB
+        GHA["🚀 <b>GitHub Actions</b><br/><i>Cron 22:00 UTC / Push main</i>"]
         
-        subgraph LIGHTSAIL["🖥️ AWS Lightsail Instance (Ubuntu 22.04)"]
+        subgraph LIGHTSAIL ["🖥️ AWS Lightsail (Ubuntu 22.04)"]
             direction TB
-            NGINX["Nginx Reverse Proxy<br/><code>:80 / :443</code>"]
+            AIRFLOW["🌪️ <b>Apache Airflow (:9179)</b><br/><i>DAG: deforestation_etl_dag</i>"]
             
-            subgraph AIRFLOW["🌪️ Apache Airflow 2.x (:9179)"]
-                DAG["DAG: deforestation_etl_dag<br/><i>Schedule Diario: 22:00 (10:00 PM)</i>"]
-                SCHED["Airflow Scheduler (systemd)"]
-                WEB["Airflow Webserver (puerto 9179)"]
+            subgraph SCRIPTS ["⚙️ Extracción & Carga"]
+                direction TB
+                SYNC["sync_alerts.py<br/><i>(Incremental GFW)</i>"]
+                EXT["download_*.py / scrape_*.py<br/><i>(Fuentes secundarias)</i>"]
+                UP["upload_to_s3.py"]
             end
-            
-            subgraph BATCH["⚙️ Scripts de Extracción y Orquestación"]
-                SCR_SYNC["sync_alerts.py<br/><i>(Incremental GFW)</i>"]
-                SCR_EXT["download_*.py<br/><i>(WB, FAO, GeoNames)</i>"]
-                SCR_SCRAPE["scrape_protected_areas.py"]
-                SCR_UP["upload_to_s3.py<br/><i>(Prefijo deforestacion-alert-etl/)</i>"]
-            end
-        end
-
-        subgraph S3["🪣 Amazon Simple Storage Service (Amazon S3)"]
-            BUCKET["S3 Bucket: deforestacion-alert-etl/<br/>├── gfw/*.csv<br/>└── external/*/*.csv"]
         end
     end
 
-    %% Subgrafo CI/CD
-    subgraph CICD["🚀 GitHub Actions CI/CD"]
-        W_DEPLOY["deploy.yml<br/><i>Push to main → Auto-provision Airflow & Nginx</i>"]
-        W_BATCH["batch.yml<br/><i>Cron 22:00 → Trigger Airflow DAG</i>"]
-    end
-
-    %% Subgrafo Proxy Público
-    PROXY["🔀 HTTPS Proxy Público<br/><b>https://docs.jhoanhurtado.com/deforestacion-alert-etl/...</b>"]
-
-    %% Subgrafo Local / Analytics
-    subgraph LOCAL["💻 Entorno Analítico Local / Workstation"]
+    %% Subgrafo 3: Almacenamiento & Distribución
+    subgraph G3 ["🪣 3. Storage & Distribución"]
         direction TB
-        FETCH["fetch_from_proxy.py<br/><i>Descarga rápida de línea base</i>"]
-        GX["🛡️ Great Expectations<br/><i>validate_quality.py (Validación de calidad)</i>"]
-        
-        subgraph NOTEBOOKS["📓 Jupyter Notebooks"]
-            NB_EDA["01 - 04 EDA Extendidos<br/><i>(GFW, World Bank, FAO, GeoNames)</i>"]
-            NB_ETL["05_etl_pipeline.ipynb<br/><i>ETL Unificado + 8 Análisis Clave</i>"]
-        end
-
-        subgraph DWH["🐘 Data Warehouse (PostgreSQL)"]
-            STAR["Star Schema Dimensional<br/><i>fact_alerts + 7 dimensiones</i>"]
-        end
-
-        subgraph VIZ["📊 Visualizaciones & ODS"]
-            CHARTS["Dashboards, Mapas Espaciales,<br/>Hotspots, Emisiones CO2 (IPCC Tier 1)"]
-        end
+        S3[("Amazon S3 Bucket<br/><b>deforestacion-alert-etl/</b><br/>├── gfw/*.csv<br/>└── external/*/*.csv")]
+        PROXY["🔀 <b>HTTPS Data Proxy</b><br/><code>docs.jhoanhurtado.com</code>"]
     end
 
-    %% Conexiones de orquestación y flujo de datos
-    W_DEPLOY -- "SSH Deploy" --> LIGHTSAIL
-    W_BATCH -- "Trigger DAG" --> DAG
-    
-    SOURCES --> BATCH
-    DAG --> BATCH
-    BATCH --> SCR_UP --> BUCKET
-    
-    BUCKET --> PROXY
+    %% Subgrafo 4: Control de Calidad & Procesamiento
+    subgraph G4 ["🛡️ 4. Calidad & ETL Pipeline"]
+        direction TB
+        FETCH["fetch_from_proxy.py<br/><i>Descarga rápida baseline</i>"]
+        GX["🛡️ <b>Great Expectations</b><br/><i>validate_quality.py</i><br/>✔️ Rangos espaciales BOL/COL<br/>✔️ No nulidad y completitud"]
+        NOTEBOOK["📓 <b>05_etl_pipeline.ipynb</b><br/><i>Limpieza, enriquecimiento<br/>y cruce espacial KD-Tree</i>"]
+    end
+
+    %% Subgrafo 5: Data Warehouse & Entrega de Valor
+    subgraph G5 ["📊 5. Data Warehouse & Analítica"]
+        direction TB
+        DWH[("🐘 <b>PostgreSQL DWH</b><br/>Star Schema Dimensional<br/><i>fact_alerts + 7 dimensiones</i>")]
+        VIZ["📈 <b>Análisis & Insights</b><br/>• Hotspots & Clusters de alerta<br/>• Emisiones CO₂ (Tier 1 IPCC)<br/>• Expansión frontera agrícola"]
+        ODS["🎯 <b>Impacto ODS</b><br/>• ODS 13: Acción por el Clima<br/>• ODS 15: Ecosistemas Terrestres"]
+    end
+
+    %% Flujos de conexión y dependencias
+    GHA -- "Trigger diario" --> AIRFLOW
+    AIRFLOW --> SYNC & EXT
+    G1 --> SYNC & EXT
+    SYNC & EXT --> UP
+    UP --> S3
+    S3 --> PROXY
     PROXY --> FETCH
     FETCH --> GX
-    GX -- "Validación Aprobada" --> NB_ETL
-    NB_EDA -.-> NB_ETL
-    NB_ETL --> STAR
-    STAR --> CHARTS
+    GX -- "Quality Gate OK" --> NOTEBOOK
+    NOTEBOOK -- "Carga Incremental" --> DWH
+    DWH --> VIZ
+    VIZ --> ODS
 
-    NGINX -- "Subdominio airflow.jhoanhurtado.com" --> WEB
+    %% Estilos visuales con paleta profesional
+    classDef sourceStyle fill:#EBF5FB,stroke:#2980B9,stroke-width:2px,color:#1B4F72;
+    classDef awsStyle fill:#FEF5E7,stroke:#D35400,stroke-width:2px,color:#7E5109;
+    classDef s3Style fill:#E8F8F5,stroke:#16A085,stroke-width:2px,color:#0E6251;
+    classDef gxStyle fill:#EAFAF1,stroke:#27AE60,stroke-width:2px,color:#145A32;
+    classDef dwhStyle fill:#F4ECF7,stroke:#8E44AD,stroke-width:2px,color:#512E5F;
+
+    class S_GFW,S_WB,S_FAO,S_GEO,S_PA sourceStyle;
+    class GHA,AIRFLOW,SYNC,EXT,UP awsStyle;
+    class S3,PROXY s3Style;
+    class FETCH,GX,NOTEBOOK gxStyle;
+    class DWH,VIZ,ODS dwhStyle;
 ```
 
 ---
@@ -130,11 +124,10 @@ El pipeline está orquestado mediante **Apache Airflow**, ejecutándose automát
 
 ![Apache Airflow DAG](docs/img/deforestation_etl_dag-graph.png)
 
-> **Ruta de imagen git compatible:** [`docs/img/deforestation_etl_dag-graph.png`](docs/img/deforestation_etl_dag-graph.png) *(puedes actualizar esta captura directamente sustituyendo dicho archivo en el repositorio)*.
+> **Ruta de imagen git compatible:** [`docs/img/deforestation_etl_dag-graph.png`](docs/img/deforestation_etl_dag-graph.png).
 
 ### Acceso a la interfaz Web de Airflow
-- **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` (o alternativamente `https://airflow-etl.jhoanhurtado.com`) redirigido mediante Nginx reverse proxy al puerto local **9179**.
-- **Acceso directo por IP/puerto:** `http://<LIGHTSAIL_IP>:9179`
+- **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` redirigido mediante Nginx reverse proxy al puerto local **9179**.
 - **Credenciales automáticas:**
   - **Usuario:** `admin`
   - **Contraseña:** `admin`
@@ -582,8 +575,79 @@ Se activa automáticamente a las 22:00 (10:00 PM) o manualmente desde la UI de G
 
 ## Modelo de datos (Star Schema)
 
+El Data Warehouse en **PostgreSQL** implementa un modelo dimensional en **Esquema de Estrella (Star Schema)** optimizado para analítica OLAP de series temporales, consultas espaciales y modelos de causalidad macroeconómica.
+
+### Diagrama Arquitectónico del Star Schema
+
+```mermaid
+flowchart TB
+    %% 1. Dimensiones Temporales & Calidad
+    subgraph D_TIME ["📅 Dimensiones Temporales & Calidad"]
+        direction TB
+        DIM_DATE["<b>dim_date</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>date_id</b>: int [PK]<br/>• date: date<br/>• year: int<br/>• month: int<br/>• week: int<br/>• day_of_week: int"]
+        DIM_CONF["<b>dim_confidence</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>confidence_id</b>: int [PK]<br/>• confidence: string<br/>• is_high_conf: boolean"]
+    end
+
+    %% 2. Dimensiones Espaciales & Territoriales
+    subgraph D_GEO ["📍 Dimensiones Espaciales & Territoriales"]
+        direction TB
+        DIM_LOC["<b>dim_location</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>location_id</b>: int [PK]<br/>• country_code: string<br/>• country_name: string<br/>• adm1_code: string<br/>• adm1_name: string"]
+        DIM_PLACES["<b>dim_places</b> <i>(GeoNames ★)</i><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>place_id</b>: int [PK]<br/>• place_name: string<br/>• latitude, longitude: float<br/>• population: int"]
+    end
+
+    %% 3. Tabla de Hechos Central
+    subgraph FACT_ZONE ["⭐ TABLA DE HECHOS CENTRAL (DWH CORE)"]
+        FACT["<b>fact_alerts</b><br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>alert_id</b>: bigint [PK]<br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>🔗 <b>date_id</b>: int [FK]<br/>🔗 <b>location_id</b>: int [FK]<br/>🔗 <b>driver_id</b>: int [FK]<br/>🔗 <b>land_cover_id</b>: int [FK]<br/>🔗 <b>confidence_id</b>: int [FK]<br/>🔗 <b>econ_id</b>: int [FK] ★<br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>📊 <i>latitude, longitude</i>: float<br/>📊 <i>tree_cover_pct</i>: float<br/>📊 <i>is_primary_forest</i>: boolean<br/>📊 <i>protected_area</i>: string<br/>📊 <i>is_soy_area</i>: boolean<br/>📊 <b>dist_place_km</b>: float ★ <i>(Haversine KD-Tree)</i>"]
+    end
+
+    %% 4. Dimensiones Biofísicas & Causalidad
+    subgraph D_ENV ["🌱 Dimensiones Biofísicas"]
+        direction TB
+        DIM_DRIVER["<b>dim_driver</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>driver_id</b>: int [PK]<br/>• driver_name: string"]
+        DIM_LAND["<b>dim_land_cover</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>land_cover_id</b>: int [PK]<br/>• land_cover_class: string"]
+    end
+
+    %% 5. Dimensión Macroeconómica
+    subgraph D_ECON ["📈 Dimensión Macroeconómica & Agrícola"]
+        direction TB
+        DIM_ECON["<b>dim_economic_context</b> <i>(WB + FAO ★)</i><br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>econ_id</b>: int [PK]<br/>• country_code: string<br/>• year: int<br/>• gdp_usd: float<br/>• agricultural_land_pct: float<br/>• soy_production_t: float<br/>• soy_area_ha: float"]
+    end
+
+    %% Relaciones dimensionales 1:N hacia la tabla de hechos
+    DIM_DATE -->|1:N| FACT
+    DIM_CONF -->|1:N| FACT
+    DIM_LOC -->|1:N| FACT
+    DIM_PLACES -.->|Proximidad Espacial| FACT
+    DIM_DRIVER -->|1:N| FACT
+    DIM_LAND -->|1:N| FACT
+    DIM_ECON -->|1:N| FACT
+
+    %% Estilos diferenciados por dominio
+    classDef factStyle fill:#1F2937,stroke:#F59E0B,stroke-width:3px,color:#FFFFFF;
+    classDef timeStyle fill:#EFF6FF,stroke:#3B82F6,stroke-width:2px,color:#1E3A8A;
+    classDef geoStyle fill:#ECFDF5,stroke:#10B981,stroke-width:2px,color:#064E3B;
+    classDef envStyle fill:#FFFBEB,stroke:#F59E0B,stroke-width:2px,color:#78350F;
+    classDef econStyle fill:#FAF5FF,stroke:#8B5CF6,stroke-width:2px,color:#4C1D95;
+
+    class FACT factStyle;
+    class DIM_DATE,DIM_CONF timeStyle;
+    class DIM_LOC,DIM_PLACES geoStyle;
+    class DIM_DRIVER,DIM_LAND envStyle;
+    class DIM_ECON econStyle;
+```
+
+### Especificación Relacional (ERD)
+
 ```mermaid
 erDiagram
+    dim_date ||--o{ fact_alerts : "date_id"
+    dim_location ||--o{ fact_alerts : "location_id"
+    dim_driver ||--o{ fact_alerts : "driver_id"
+    dim_land_cover ||--o{ fact_alerts : "land_cover_id"
+    dim_confidence ||--o{ fact_alerts : "confidence_id"
+    dim_economic_context ||--o{ fact_alerts : "econ_id"
+    dim_places ||..o{ fact_alerts : "dist_place_km"
+
     dim_date {
         int date_id PK
         date date
@@ -651,14 +715,6 @@ erDiagram
         boolean is_soy_area
         float dist_place_km "★ Métrica haversine"
     }
-
-    fact_alerts }o--|| dim_date : "date_id"
-    fact_alerts }o--|| dim_location : "location_id"
-    fact_alerts }o--|| dim_driver : "driver_id"
-    fact_alerts }o--|| dim_land_cover : "land_cover_id"
-    fact_alerts }o--|| dim_confidence : "confidence_id"
-    fact_alerts }o--|| dim_economic_context : "econ_id"
-    fact_alerts }o--o| dim_places : "dist_place_km (GeoNames)"
 ```
 
 > **★ = Nuevas tablas y métricas añadidas en la Segunda Entrega** para responder a los análisis de causalidad macroeconómica, presión agropecuaria y proximidad a centros poblados.
