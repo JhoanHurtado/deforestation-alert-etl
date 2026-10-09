@@ -502,26 +502,6 @@ nano .env   # completar con valores reales
 # 6. Crear directorio de logs
 mkdir -p ~/logs
 
-# 7. Configurar Nginx para el subdominio airflow.jhoanhurtado.com -> puerto 9179
-sudo tee /etc/nginx/sites-available/airflow.conf << 'EOF'
-server {
-    listen 80;
-    server_name airflow.jhoanhurtado.com airflow-etl.jhoanhurtado.com;
-
-    location / {
-        proxy_pass http://localhost:9179;
-        proxy_set_header Host $http_host;
-        proxy_redirect off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF
-sudo ln -sf /etc/nginx/sites-available/airflow.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
-
 ### Secrets requeridos en GitHub
 
 Ir a **Settings → Secrets and variables → Actions** y agregar:
