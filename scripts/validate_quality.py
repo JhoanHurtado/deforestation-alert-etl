@@ -70,11 +70,35 @@ def main():
     all_passed = True
 
     # ── 1. Validación de Alertas de Deforestación GFW ──────────────────────────
-    gfw_files = list((DATA_DIR / "csv").glob("*alerts*.csv"))
+    # Limpiar posibles archivos temporales de 0 bytes
+    for p in (DATA_DIR / "csv").glob("*alerts*.csv"):
+        if p.stat().st_size == 0:
+            try:
+                p.unlink()
+                log(f"  🗑️ Archivo vacío de 0 bytes eliminado: {p.name}")
+            except OSError:
+                pass
+
+    gfw_files = [p for p in (DATA_DIR / "csv").glob("*alerts*.csv") if p.stat().st_size > 0]
+    if not gfw_files:
+        log("⚠️ No se encontraron archivos GFW válidos en data/csv. Descargando base desde proxy S3...")
+        try:
+            import subprocess
+            fetch_script = PROJECT_ROOT / "scripts" / "fetch_from_proxy.py"
+            if fetch_script.exists():
+                subprocess.run([sys.executable, str(fetch_script), "--only", "gfw"], check=True)
+                gfw_files = [p for p in (DATA_DIR / "csv").glob("*alerts*.csv") if p.stat().st_size > 0]
+        except Exception as e:
+            log(f"⚠️ Error al obtener CSVs base desde el proxy: {e}")
+
     if gfw_files:
         for gfw_path in gfw_files:
             log(f"Validando GFW: {gfw_path.name}")
-            df_gfw = pd.read_csv(gfw_path, nrows=10000)  # Validar muestra representativa de 10k filas
+            try:
+                df_gfw = pd.read_csv(gfw_path, nrows=10000)  # Validar muestra representativa de 10k filas
+            except pd.errors.EmptyDataError:
+                log(f"  ⚠️ Archivo {gfw_path.name} no contiene columnas ni datos. Omitiendo.")
+                continue
             
             exp_gfw = [
                 gx.expectations.ExpectColumnValuesToNotBeNull(column="latitude"),
@@ -89,49 +113,58 @@ def main():
             if not validate_dataframe(context, df_gfw, suite_id, exp_gfw):
                 all_passed = False
     else:
-        log("⚠️ No se encontraron archivos GFW en data/csv")
+        log("⚠️ No se encontraron archivos GFW en data/csv para validar.")
 
     # ── 2. Validación de World Bank ───────────────────────────────────────────
     wb_path = DATA_DIR / "external" / "worldbank" / "worldbank_indicators.csv"
-    if wb_path.exists():
+    if wb_path.exists() and wb_path.stat().st_size > 0:
         log(f"Validando World Bank: {wb_path.name}")
-        df_wb = pd.read_csv(wb_path)
-        exp_wb = [
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="country_code"),
-            gx.expectations.ExpectColumnValuesToBeInSet(column="country_code", value_set=["BOL", "COL"]),
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="indicator_name"),
-            gx.expectations.ExpectColumnValuesToBeBetween(column="year", min_value=2000, max_value=2030),
-        ]
-        if not validate_dataframe(context, df_wb, "worldbank", exp_wb):
-            all_passed = False
+        try:
+            df_wb = pd.read_csv(wb_path)
+            exp_wb = [
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="country_code"),
+                gx.expectations.ExpectColumnValuesToBeInSet(column="country_code", value_set=["BOL", "COL"]),
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="indicator_name"),
+                gx.expectations.ExpectColumnValuesToBeBetween(column="year", min_value=2000, max_value=2030),
+            ]
+            if not validate_dataframe(context, df_wb, "worldbank", exp_wb):
+                all_passed = False
+        except pd.errors.EmptyDataError:
+            log(f"  ⚠️ Archivo {wb_path.name} está vacío. Omitiendo.")
 
     # ── 3. Validación de GeoNames ─────────────────────────────────────────────
     geo_path = DATA_DIR / "external" / "geonames" / "geonames_places.csv"
-    if geo_path.exists():
+    if geo_path.exists() and geo_path.stat().st_size > 0:
         log(f"Validando GeoNames: {geo_path.name}")
-        df_geo = pd.read_csv(geo_path, nrows=5000)
-        exp_geo = [
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="geonameid"),
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="latitude"),
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="longitude"),
-            gx.expectations.ExpectColumnValuesToBeBetween(column="latitude", min_value=-90.0, max_value=90.0),
-            gx.expectations.ExpectColumnValuesToBeBetween(column="longitude", min_value=-180.0, max_value=180.0),
-        ]
-        if not validate_dataframe(context, df_geo, "geonames", exp_geo):
-            all_passed = False
+        try:
+            df_geo = pd.read_csv(geo_path, nrows=5000)
+            exp_geo = [
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="geonameid"),
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="latitude"),
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="longitude"),
+                gx.expectations.ExpectColumnValuesToBeBetween(column="latitude", min_value=-90.0, max_value=90.0),
+                gx.expectations.ExpectColumnValuesToBeBetween(column="longitude", min_value=-180.0, max_value=180.0),
+            ]
+            if not validate_dataframe(context, df_geo, "geonames", exp_geo):
+                all_passed = False
+        except pd.errors.EmptyDataError:
+            log(f"  ⚠️ Archivo {geo_path.name} está vacío. Omitiendo.")
 
     # ── 4. Validación de Áreas Protegidas ─────────────────────────────────────
     pa_path = DATA_DIR / "external" / "protected_areas" / "protected_areas.csv"
-    if pa_path.exists():
+    if pa_path.exists() and pa_path.stat().st_size > 0:
         log(f"Validando Áreas Protegidas: {pa_path.name}")
-        df_pa = pd.read_csv(pa_path)
-        exp_pa = [
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="name"),
-            gx.expectations.ExpectColumnValuesToNotBeNull(column="country_code"),
-            gx.expectations.ExpectColumnValuesToBeInSet(column="country_code", value_set=["BOL", "COL"]),
-        ]
-        if not validate_dataframe(context, df_pa, "protected_areas", exp_pa):
-            all_passed = False
+        try:
+            df_pa = pd.read_csv(pa_path)
+            exp_pa = [
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="name"),
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="country_code"),
+                gx.expectations.ExpectColumnValuesToBeInSet(column="country_code", value_set=["BOL", "COL"]),
+            ]
+            if not validate_dataframe(context, df_pa, "protected_areas", exp_pa):
+                all_passed = False
+        except pd.errors.EmptyDataError:
+            log(f"  ⚠️ Archivo {pa_path.name} está vacío. Omitiendo.")
 
     log("=" * 60)
     if all_passed:

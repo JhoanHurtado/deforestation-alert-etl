@@ -115,9 +115,9 @@ def csv_path_for(country_code: str, start: str, end: str) -> Path:
 
 
 def find_existing_csv(country_code: str) -> Path | None:
-    """Busca cualquier CSV existente para el país."""
+    """Busca cualquier CSV existente y no vacío para el país."""
     pattern = f"{country_code.lower()}_alerts_*.csv"
-    files = sorted(DATA_DIR.glob(pattern))
+    files = sorted([f for f in DATA_DIR.glob(pattern) if f.stat().st_size > 0])
     return files[-1] if files else None
 
 
@@ -239,6 +239,14 @@ def sync_country(country_code: str, from_date: str, to_date: str) -> dict:
         for i, (ws, we) in enumerate(win_list, 1):
             process(ws, we, f"[{i:03d}/{len(win_list)}]")
 
+    # Si se creó un archivo nuevo y no se añadieron filas, eliminar el archivo vacío de 0 bytes
+    if not append and rows_added == 0 and out_path.exists():
+        try:
+            out_path.unlink()
+            log(f"   🗑️ Archivo sin datos eliminado: {out_path.name}")
+        except OSError:
+            pass
+
     # Guardar ventanas fallidas
     existing_failed = {}
     if failed_path.exists():
@@ -263,6 +271,16 @@ def resolve_range(country_code: str, args) -> tuple[str, str] | None:
     yesterday = today - timedelta(days=1)
 
     if args.daily:
+        existing = find_existing_csv(country_code)
+        if not existing:
+            log(f"   {country_code}: modo --daily sin CSV base. Descargando base desde el proxy S3...")
+            try:
+                import subprocess
+                fetch_script = Path(__file__).parent / "fetch_from_proxy.py"
+                if fetch_script.exists():
+                    subprocess.run([sys.executable, str(fetch_script), "--only", "gfw"], check=True)
+            except Exception as e:
+                log(f"   ⚠️ Error descargando base desde proxy: {e}")
         return yesterday.isoformat(), yesterday.isoformat()
 
     if args.to:
