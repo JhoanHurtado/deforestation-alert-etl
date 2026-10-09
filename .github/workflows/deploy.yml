@@ -118,6 +118,8 @@ jobs:
             export AIRFLOW__API__PORT="9179"
             export AIRFLOW__API__HOST="0.0.0.0"
             export AIRFLOW__API__BASE_URL="http://127.0.0.1:9179"
+            export AIRFLOW__CORE__EXECUTION_API_SERVER_URL="http://127.0.0.1:9179/execution/"
+            export AIRFLOW__API_AUTH__JWT_SECRET="defor_etl_jwt_secret_key_fixed_token_2026_secure"
             mkdir -p "$AIRFLOW_HOME"
 
             # Enlazar la carpeta de DAGs para que siempre sea encontrada
@@ -166,6 +168,8 @@ jobs:
             Environment="AIRFLOW__API__PORT=9179"
             Environment="AIRFLOW__API__HOST=0.0.0.0"
             Environment="AIRFLOW__API__BASE_URL=http://127.0.0.1:9179"
+            Environment="AIRFLOW__CORE__EXECUTION_API_SERVER_URL=http://127.0.0.1:9179/execution/"
+            Environment="AIRFLOW__API_AUTH__JWT_SECRET=defor_etl_jwt_secret_key_fixed_token_2026_secure"
             Environment="PROJECT_DIR=/home/ubuntu/deforestation-alert-etl"
             ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow standalone
             Restart=always
