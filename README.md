@@ -717,10 +717,6 @@ erDiagram
     }
 ```
 
-> **★ = Nuevas tablas y métricas añadidas en la Segunda Entrega** para responder a los análisis de causalidad macroeconómica, presión agropecuaria y proximidad a centros poblados.
-
----
-
 ## Alineación con los ODS
 
 | ODS | Contribución |
