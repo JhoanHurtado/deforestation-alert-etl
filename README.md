@@ -209,8 +209,7 @@ deforestation-alert-etl/
 │   ├── 02_eda_worldbank.ipynb  # EDA indicadores World Bank
 │   ├── 03_eda_faostat.ipynb    # EDA producción FAO
 │   ├── 04_eda_geonames.ipynb   # EDA localidades GeoNames
-│   ├── 05_etl_pipeline.ipynb   # ETL unificado + 8 análisis analíticos + Star Schema
-│   └── etl_eda.ipynb           # Notebook original (primera entrega)
+│   └── 05_etl_pipeline.ipynb   # ETL unificado + 8 análisis analíticos + Star Schema
 ├── scripts/
 │   ├── batch_download.py       # Orquestador: ejecuta downloads + quality + S3
 │   ├── sync_alerts.py          # Descarga incremental de alertas GFW (evita full download inicial)
@@ -334,8 +333,6 @@ python scripts/gfw_signup.py
 | 3 | `03_eda_faostat.ipynb` | EDA producción agrícola. §1-4: estructura, producción por cultivo y área cosechada. **Análisis extendido:** composición de producción (área apilada) y variación YoY por commodity. |
 | 4 | `04_eda_geonames.ipynb` | EDA localidades pobladas. §1-5: estructura, distribución geográfica, población, top localidades. **Análisis extendido:** top-10 más poblados por país y densidad espacial (hexbin). |
 | 5 | `05_etl_pipeline.ipynb` | **Pipeline completo:** carga las 4 fuentes → transforma → merge → migra al star schema → carga incremental → EDA desde DB → visualizaciones integradas. |
-
-> `etl_eda.ipynb` es el notebook original de la primera entrega. No se modifica.
 
 ---
 
