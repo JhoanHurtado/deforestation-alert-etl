@@ -116,9 +116,12 @@ jobs:
             export AIRFLOW__CORE__LOAD_EXAMPLES="False"
             export AIRFLOW__WEBSERVER__WEB_SERVER_PORT="9179"
             export AIRFLOW__API__PORT="9179"
-            export AIRFLOW__API__HOST="127.0.0.1"
+            export AIRFLOW__API__HOST="0.0.0.0"
             export AIRFLOW__API__BASE_URL="http://127.0.0.1:9179"
             mkdir -p "$AIRFLOW_HOME"
+
+            # Enlazar la carpeta de DAGs para que siempre sea encontrada
+            ln -sfn "$PROJECT_DIR/dags" "$AIRFLOW_HOME/dags"
 
             # Copiar configuración base versionada
             cp "$PROJECT_DIR/config/airflow_local.cfg" "$AIRFLOW_HOME/airflow.cfg"
@@ -128,8 +131,16 @@ jobs:
             echo '{"admin": "admin"}' > "$AIRFLOW_HOME/simple_auth_manager_passwords.json.generated"
             echo "admin" > "$AIRFLOW_HOME/standalone_admin_password.txt"
 
+            # Si existe base de datos heredada de Airflow 2, respaldar para inicialización limpia de Airflow 3
+            if [ -f "$AIRFLOW_HOME/airflow.db" ]; then
+              if ! "$PYTHON" -c "import sqlite3; conn=sqlite3.connect('$AIRFLOW_HOME/airflow.db'); cur=conn.cursor(); cur.execute('SELECT version_num FROM alembic_version'); v=cur.fetchone(); assert v and 'd2f4e1b3c5a7' in v[0]" 2>/dev/null; then
+                echo "Migrating: backing up legacy Airflow 2 db and creating clean Airflow 3 database..."
+                mv "$AIRFLOW_HOME/airflow.db" "$AIRFLOW_HOME/airflow.db.old_af2" 2>/dev/null || true
+              fi
+            fi
+
             echo "── Running Airflow DB migrations ──"
-            "$PYTHON" -m airflow db migrate 2>/dev/null || "$PYTHON" -m airflow db init 2>/dev/null || true
+            "$PYTHON" -m airflow db migrate
 
             echo "── Stopping legacy Airflow 2 services if active ──"
             sudo systemctl stop airflow-webserver airflow-scheduler 2>/dev/null || true
@@ -152,7 +163,7 @@ jobs:
             Environment="AIRFLOW__CORE__LOAD_EXAMPLES=False"
             Environment="AIRFLOW__WEBSERVER__WEB_SERVER_PORT=9179"
             Environment="AIRFLOW__API__PORT=9179"
-            Environment="AIRFLOW__API__HOST=127.0.0.1"
+            Environment="AIRFLOW__API__HOST=0.0.0.0"
             Environment="AIRFLOW__API__BASE_URL=http://127.0.0.1:9179"
             Environment="PROJECT_DIR=/home/ubuntu/deforestation-alert-etl"
             ExecStart=/home/ubuntu/deforestation-alert-etl/venv/bin/airflow standalone
@@ -195,6 +206,8 @@ jobs:
           script: |
             PROJECT_DIR="$HOME/deforestation-alert-etl"
             PYTHON="$PROJECT_DIR/venv/bin/python"
+            export AIRFLOW_HOME="$HOME/airflow"
+            export AIRFLOW__CORE__DAGS_FOLDER="$PROJECT_DIR/dags"
 
             echo "── Python version ──"
             "$PYTHON" --version
@@ -202,14 +215,23 @@ jobs:
             echo "── Checking imports ──"
             "$PYTHON" -c "import requests, boto3, pandas, sqlalchemy, airflow; print(f'Airflow version: {airflow.__version__}')"
 
-            echo "── Waiting 5s for services to stabilize ──"
-            sleep 5
-
-            echo "── Checking Airflow Service ──"
+            echo "── Checking Airflow Service Status ──"
             sudo systemctl is-active airflow && echo "airflow: ACTIVE" || echo "airflow: INACTIVE"
 
-            echo "── Checking Port 9179 Listening ──"
-            sudo ss -tulpn | grep 9179 || echo "Waiting for port 9179 to bind..."
+            echo "── Waiting for Port 9179 to bind (up to 30s) ──"
+            for i in $(seq 1 15); do
+              if sudo ss -tulpn | grep -q 9179; then
+                echo "Port 9179 is active and listening!"
+                break
+              fi
+              echo "Waiting for port 9179 ($i/15)..."
+              sleep 2
+            done
+
+            if ! sudo ss -tulpn | grep -q 9179; then
+              echo "=== Service logs from journalctl ==="
+              sudo journalctl -u airflow -n 30 --no-pager || true
+            fi
 
             echo "── Airflow Loaded DAGs ──"
             "$PYTHON" -m airflow dags list
