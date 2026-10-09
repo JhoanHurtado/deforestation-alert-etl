@@ -518,35 +518,7 @@ mkdir -p ~/logs
 
 Configura Nginx para enrutar el tráfico del subdominio `airflow.jhoanhurtado.com` hacia el Webserver de Airflow que escucha en el puerto interno `9179`:
 
-```bash
-sudo tee /etc/nginx/sites-available/airflow.conf << 'EOF'
-server {
-    listen 80;
-    server_name airflow.jhoanhurtado.com airflow-etl.jhoanhurtado.com;
 
-    location / {
-        proxy_pass http://localhost:9179;
-        proxy_set_header Host $http_host;
-        proxy_redirect off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF
-
-# Habilitar sitio y recargar Nginx
-sudo ln -sf /etc/nginx/sites-available/airflow.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-> 🔒 **HTTPS / Certificado SSL**: Para asegurar la conexión con SSL gratuito de Let's Encrypt:
-> ```bash
-> sudo apt install -y certbot python3-certbot-nginx
-> sudo certbot --nginx -d airflow.jhoanhurtado.com
-> ```
-
----
 
 ### Secrets requeridos en GitHub Actions
 
