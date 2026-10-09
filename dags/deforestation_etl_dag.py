@@ -84,7 +84,7 @@ with DAG(
         bash_command=(
             f"cd {PROJECT} && {PROJECT}/venv/bin/jupyter nbconvert "
             f"--to notebook --execute notebooks/05_etl_pipeline.ipynb "
-            f"--output notebooks/05_etl_pipeline_executed.ipynb"
+            f"--output 05_etl_pipeline_executed.ipynb"
         ),
         execution_timeout=timedelta(hours=2),
     )
