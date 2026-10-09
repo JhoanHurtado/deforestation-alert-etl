@@ -57,6 +57,9 @@ docs/Project*.pdf
 !.github/workflows/
 !.github/workflows/*.yml
 
+# ── Airflow Local (ignorar carpeta local de ejecuciones y logs) ──
+airflow_local/
+
 # ── Logs y temporales ────────────────────────────────────────
 *.log
 *.tmp
