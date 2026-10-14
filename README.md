@@ -127,7 +127,7 @@ El pipeline está orquestado mediante **Apache Airflow**, ejecutándose automát
 > **Ruta de imagen git compatible:** [`docs/img/deforestation_etl_dag-graph.png`](docs/img/deforestation_etl_dag-graph.png).
 
 ### Acceso a la interfaz Web de Airflow
-- **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` redirigido mediante Nginx reverse proxy al puerto local **9179**.
+- **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` redirigido mediante Nginx reverse proxy.
 - **Credenciales automáticas:**
   - **Usuario:** `admin`
   - **Contraseña:** `admin`
@@ -169,9 +169,6 @@ Todos los datasets están **100% excluidos del repositorio Git** mediante `.giti
 | 5 | **GeoNames Localidades Pobladas** | `deforestacion-alert-etl/external/geonames/geonames_places.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/geonames/geonames_places.csv` | `data/external/geonames/geonames_places.csv` |
 | 6 | **Áreas Protegidas y Parques Nacionales** | `deforestacion-alert-etl/external/protected_areas/protected_areas.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/protected_areas/protected_areas.csv` | `data/external/protected_areas/protected_areas.csv` |
 
-> 💡 **Subida manual:** Si subes los archivos manualmente a S3 desde la consola de AWS o AWS CLI, colócalos exactamente en las rutas listadas en la columna *Ruta en S3*. Automáticamente quedarán expuestos en las URLs públicas del proxy y serán consumidos por los notebooks sin necesidad de descargas repetitivas por API.
-
----
 
 ## Estructura del proyecto
 
@@ -473,74 +470,6 @@ El servidor Lightsail ejecuta automáticamente todas las noches a las **22:00 (1
 Para forzar manualmente la ejecución:
 - En la interfaz web de Airflow: activar y presionar **Trigger DAG**.
 - En GitHub: ir a **Actions → Daily Batch Download → Run workflow**.
-
----
-
-## Despliegue en AWS Lightsail
-
-La infraestructura de producción está alojada en una instancia **AWS Lightsail** (Ubuntu 22.04 LTS), ejecutando los servicios de **Apache Airflow** aislados mediante `systemd` y expuestos a través de **Nginx Reverse Proxy** con HTTPS.
-
-### 1. Configuración del Servidor y Dependencias
-
-Ejecuta estos pasos en la terminal de la instancia Lightsail:
-
-```bash
-# 1. Conectar al servidor mediante SSH
-ssh -i <tu-llave.pem> ubuntu@<LIGHTSAIL_IP>
-
-# 2. Actualizar paquetes del sistema e instalar utilidades base
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3.12 python3.12-venv python3-pip git nginx curl
-
-# 3. Configuración de Swap (Recomendado para instancias Lightsail de 2 GB RAM)
-sudo fallocate -l 6G /swapfile2
-sudo chmod 600 /swapfile2
-sudo mkswap /swapfile2
-sudo swapon /swapfile2
-echo '/swapfile2 none swap sw 0 0' | sudo tee -a /etc/fstab
-
-# 4. Clonar el repositorio oficial
-git clone https://github.com/JhoanHurtado/deforestation-alert-etl.git
-cd deforestation-alert-etl
-
-# 5. Crear el entorno virtual e instalar requerimientos
-python3.12 -m venv venv
-venv/bin/pip install --upgrade pip
-venv/bin/pip install -r requirements.txt
-
-# 6. Configurar variables de entorno y directorios de logs
-cp .env.example .env
-nano .env   # Completar con credenciales reales (PostgreSQL, S3, GFW, etc.)
-mkdir -p ~/logs
-```
-
-### 2. Configuración de Nginx Reverse Proxy (Puerto 9179 → Subdominio)
-
-Configura Nginx para enrutar el tráfico del subdominio `airflow.jhoanhurtado.com` hacia el Webserver de Airflow que escucha en el puerto interno `9179`:
-
-
-
-### Secrets requeridos en GitHub Actions
-
-Para que los flujos de CI/CD puedan conectarse al servidor y ejecutar el pipeline, deben configurarse los siguientes secrets en **Settings → Secrets and variables → Actions**:
-
-| Secret | Descripción | Ejemplo / Valor |
-|--------|-------------|-----------------|
-| `LIGHTSAIL_HOST` | IP pública o dominio del servidor Lightsail | `18.234.xxx.xxx` |
-| `LIGHTSAIL_USER` | Usuario SSH del sistema | `ubuntu` |
-| `LIGHTSAIL_SSH_KEY` | Clave privada SSH sin contraseña | Contenido de `~/.ssh/id_rsa` o archivo `.pem` |
-| `GFW_API_KEY` | Token API de Global Forest Watch | `eyJhbGciOiJIUzI1NiIsIn...` |
-| `PG_HOST` / `PG_PORT` | Host y puerto de PostgreSQL | `localhost` / `5432` |
-| `PG_USER` / `PG_PASSWORD` | Usuario y contraseña de PostgreSQL | `etl_user` / `********` |
-| `PG_DB` | Nombre de la base de datos DWH | `deforestation_dwh` |
-| `S3_BUCKET` | Nombre del Bucket en Amazon S3 | `deforestacion-alert-etl` |
-| `S3_PREFIX` | Carpeta/prefijo dentro del bucket S3 | `deforestacion-alert-etl/` |
-| `AWS_ACCESS_KEY_ID` | Access Key IAM con permisos en S3 | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | Secret Key IAM | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `AWS_REGION` | Región AWS del bucket S3 | `us-east-1` |
-| `DATA_PROXY_URL` | URL del proxy HTTPS para descarga | `https://docs.jhoanhurtado.com` |
-
----
 
 ## GitHub Actions CI/CD
 
