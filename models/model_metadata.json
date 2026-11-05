@@ -1,0 +1,61 @@
+{
+  "model_type": "RandomForestClassifier",
+  "target_variable": "is_primary_forest",
+  "target_description": "1 = Deforestaci\u00f3n en Bosque Primario (Cr\u00edtico), 0 = Bosque Secundario / Otro",
+  "numeric_features": [
+    "latitude",
+    "longitude",
+    "tree_cover_density_pct",
+    "dist_nearest_place_km",
+    "month",
+    "week",
+    "driver_id"
+  ],
+  "categorical_features": [
+    "country_code"
+  ],
+  "metrics": {
+    "accuracy": 0.9277,
+    "f1_score": 0.9271,
+    "roc_auc": 0.9789,
+    "confusion_matrix": [
+      [
+        18728,
+        1272
+      ],
+      [
+        1620,
+        18380
+      ]
+    ],
+    "classification_report": {
+      "0": {
+        "precision": 0.9203852958521722,
+        "recall": 0.9364,
+        "f1-score": 0.9283235848121344,
+        "support": 20000.0
+      },
+      "1": {
+        "precision": 0.9352737634846326,
+        "recall": 0.919,
+        "f1-score": 0.9270654695853929,
+        "support": 20000.0
+      },
+      "accuracy": 0.9277,
+      "macro avg": {
+        "precision": 0.9278295296684025,
+        "recall": 0.9277,
+        "f1-score": 0.9276945271987637,
+        "support": 40000.0
+      },
+      "weighted avg": {
+        "precision": 0.9278295296684024,
+        "recall": 0.9277,
+        "f1-score": 0.9276945271987636,
+        "support": 40000.0
+      }
+    }
+  },
+  "training_samples": 160000,
+  "test_samples": 40000
+}
