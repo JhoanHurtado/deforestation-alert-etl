@@ -135,22 +135,27 @@ El pipeline está orquestado mediante **Apache Airflow**, ejecutándose automát
   - **Email:** `jhoanezequielh@gmail.com`
   - **Rol:** `Admin`
 
-### Pipeline de Tareas en el DAG
-1. `sync_gfw_alerts`: Descarga incremental de alertas GFW (omite descarga masiva la primera vez, verificando únicamente días nuevos desde la última ejecución).
-2. `download_worldbank`, `download_faostat`, `download_geonames`, `scrape_protected_areas`: Extracciones paralelas de fuentes externas.
-3. `upload_to_s3`: Sube los CSVs crudos con nombres reales al bucket S3 bajo el prefijo `deforestacion-alert-etl/`.
-4. `validate_data_quality`: Suite de **Great Expectations** que valida tipos, completitud y rangos espaciales. Si falla la calidad, detiene la carga a base de datos.
-5. `run_etl_pipeline`: Ejecuta la transformación unificada y carga incremental a PostgreSQL (Star Schema).
+### Pipeline de Tareas en el DAG (Arquitectura Medallion & Calidad)
+El flujo fue refactorizado siguiendo los principios de arquitectura de datos moderna y tareas atómicas desacopladas:
+1. `sync_gfw_alerts`, `download_worldbank`, `download_faostat`, `download_geonames`, `scrape_protected_areas`: **Ingesta paralela multi-fuente** desde APIs públicas y web scraping con manejo estricto de excepciones (fallan con `exit 1` si la API no responde o no genera registros).
+2. `upload_to_s3_bronze`: **Persistencia inmutable en Data Lake (Bronze Layer)**. Garantiza que la materia prima cruda quede respaldada en Amazon S3 antes de cualquier transformación o limpieza.
+3. `validate_data_quality`: **Data Quality Gate (Great Expectations)**. Audita el **100% de los datos** (sin submuestreo). Si un dataset viene vacío, incompleto o corrompido, la validación falla (`exit 1`) y aborta de forma preventiva la carga al almacén.
+4. `transform_and_enrich_data`: **Capa Silver (Transformación y Enriquecimiento)**. Normaliza formatos, limpia valores atípicos y calcula distancias esféricas geodésicas mediante un árbol espacial `BallTree` (métrica Haversine en radianes) sin productos cartesianos no espaciados.
+5. `load_to_data_warehouse`: **Capa Gold (Star Schema en PostgreSQL)**. Ejecuta el DDL relacional, carga las dimensiones con llaves surrogate (`_id`), resuelve claves foráneas hacia `dim_economic_context` (evitando duplicar series macroeconómicas por cada alerta) y puebla `fact_alerts` con índices optimizados.
+6. `generate_analytics_and_viz`: **Capa de Consumo & Business Insights**. Ejecuta de forma independiente las consultas SQL del DWH y genera dashboards de negocio exportados en alta resolución.
 
 ---
 
-## Control de Calidad (Great Expectations)
+## Control de Calidad (Great Expectations — Quality Gate)
 
-Para cumplir con los criterios de validación de calidad de datos exigidos para la segunda entrega, se integra el script [`scripts/validate_quality.py`](scripts/validate_quality.py) respaldado por **Great Expectations (GX)**:
-- **Alertas GFW:** Valida columnas mandatorias (`latitude`, `longitude`, `alert__date`, `confidence__cat`), no nulidad en coordenadas y rangos geográficos válidos (latitud en `[-23, 14]`, longitud en `[-80, -57]`).
-- **World Bank:** Valida presencia de columnas clave, códigos ISO (`BOL`, `COL`) y rango temporal (`year >= 2010`).
-- **GeoNames:** Valida completitud de nombres de localidades y rangos de coordenadas válidos.
-- **Áreas Protegidas:** Valida nombres y categorías de manejo IUCN.
+Para cumplir con los criterios de validación de calidad de datos exigidos para la segunda entrega, se integra el script [`scripts/validate_quality.py`](scripts/validate_quality.py) respaldado por **Great Expectations (GX)** como compuerta obligatoria:
+- **Auditoría Exhaustiva al 100% de Filas:** Se eliminó cualquier submuestreo artificial (`nrows`), validando la totalidad de los ~1.5 millones de alertas y catálogos completos en memoria en menos de 2 segundos.
+- **Tolerancia Cero a Datasets Vacíos:** Un archivo vacío (0 bytes, 0 filas o ausente) genera una falla crítica inmediata (`return False` / `ExpectTableRowCountToBeBetween(min_value=1)`), deteniendo el pipeline.
+- **Alertas GFW:** Valida no-nulidad de coordenadas (`latitude`, `longitude`), límites espaciales geográficos estrictos (`[-90, 90]`, `[-180, 180]`), presencia de fecha de alerta, densidad de dosel arbóreo entre 0 y 100%, y categorías de confianza válidas (`nominal`, `high`, `highest`).
+- **World Bank:** Valida códigos de país ISO (`BOL`, `COL`), nombres de indicadores no nulos y rango temporal coherente (`2000–2030`).
+- **FAOSTAT:** Valida métricas agropecuarias, elementos de producción y rangos temporales.
+- **GeoNames:** Valida identificadores únicos de geonames y coordenadas lat/lon globales.
+- **Áreas Protegidas:** Valida nombres no vacíos, categorización de manejo y códigos de país.
 
 ---
 

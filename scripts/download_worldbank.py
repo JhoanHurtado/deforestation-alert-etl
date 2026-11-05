@@ -12,6 +12,7 @@ Salida: data/external/worldbank/worldbank_indicators.csv
 """
 
 import csv
+import sys
 import requests
 from pathlib import Path
 
@@ -55,6 +56,8 @@ def main():
     fieldnames = ["country_code", "country_name", "year", "indicator_code",
                   "indicator_name", "value"]
 
+    total_written = 0
+    errors = []
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -78,10 +81,16 @@ def main():
                         })
                         written += 1
                     print(f"{written} filas")
+                    total_written += written
                 except Exception as e:
                     print(f"ERROR: {e}")
+                    errors.append((country, indicator_code, str(e)))
 
-    print(f"\n✅ Guardado en {out_path}")
+    if total_written == 0 or len(errors) == len(COUNTRIES) * len(INDICATORS):
+        print(f"\n❌ Error fatal: no se pudo descargar ningún dato del World Bank ({len(errors)} fallas).")
+        sys.exit(1)
+
+    print(f"\n✅ Guardado en {out_path} ({total_written:,} filas)")
 
 
 if __name__ == "__main__":

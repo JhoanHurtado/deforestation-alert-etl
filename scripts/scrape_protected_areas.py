@@ -15,6 +15,7 @@ Uso:
 """
 
 import csv
+import sys
 import re
 import time
 import argparse
@@ -178,6 +179,10 @@ def main():
 
     print(f"\n{'='*55}")
     print(f"Total filas: {len(all_rows)}")
+
+    if len(all_rows) == 0:
+        print("❌ Error fatal: no se extrajo ninguna área protegida (posible cambio en HTML o bloqueo).")
+        sys.exit(1)
 
     if args.dry_run:
         print("\n[DRY RUN] Primeras 5 filas:")
