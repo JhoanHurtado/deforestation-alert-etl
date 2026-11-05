@@ -1,7 +1,7 @@
-# 🌳 Deforestation Alert ETL — Segunda Entrega
+# 🌳 Deforestation Alert ETL & Real-Time Prediction — Entrega Final
 
-Pipeline ETL automatizado para el análisis de alertas de deforestación en Bolivia y Colombia (2022–2026).  
-Proyecto académico — **ETL (G51)** · Ingeniería de Datos e Inteligencia Artificial.
+Pipeline de Ingeniería de Datos, Orquestación con Apache Airflow, Streaming con Apache Kafka, Inferencia de Machine Learning y Consumo Dual (Analítico y Operacional) para alertas de deforestación en Bolivia y Colombia (2022–2026).  
+Proyecto académico — **ETL (G51)** · Maestría / Especialización en Ingeniería de Datos e Inteligencia Artificial.
 
 Alineado con **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecosistemas terrestres**.
 
@@ -9,571 +9,235 @@ Alineado con **ODS 13 — Acción por el clima** y **ODS 15 — Vida de ecosiste
 
 ## Tabla de contenidos
 
-- [Arquitectura](#arquitectura)
-- [Orquestación con Apache Airflow](#orquestación-con-apache-airflow)
-- [Control de Calidad (Great Expectations)](#control-de-calidad-great-expectations)
-- [Fuentes de datos y Storage S3](#fuentes-de-datos-y-storage-s3)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Scripts — qué hace cada uno](#scripts--qué-hace-cada-uno)
-- [Notebooks — orden de ejecución](#notebooks--orden-de-ejecución)
-- [Instalación y configuración](#instalación-y-configuración)
-- [Cómo ejecutar el pipeline](#cómo-ejecutar-el-pipeline)
-- [Despliegue en AWS Lightsail](#despliegue-en-aws-lightsail)
-- [GitHub Actions CI/CD](#github-actions-cicd)
-- [Modelo de datos](#modelo-de-datos-star-schema)
-- [Alineación con los ODS](#alineación-con-los-ods)
+1. [Articulación de Generación de Doble Valor](#-articulación-de-generación-de-doble-valor)
+2. [Arquitectura General del Sistema](#-arquitectura-general-del-sistema)
+3. [Stack Tecnológico Integral](#-stack-tecnológico-integral)
+4. [Fuentes de Datos y Persistencia Bronze (S3)](#-fuentes-de-datos-y-persistencia-bronze-s3)
+5. [Orquestación con Apache Airflow & Autenticación](#-orquestación-con-apache-airflow--autenticación)
+6. [Control de Calidad Exhaustivo (Great Expectations)](#-control-de-calidad-exhaustivo-great-expectations)
+7. [Modelo Dimensional (Star Schema)](#-modelo-dimensional-star-schema)
+8. [Pipeline de Machine Learning (Inferencia & Serialización)](#-pipeline-de-machine-learning-inferencia--serialización)
+9. [Arquitectura de Streaming con Apache Kafka](#-arquitectura-de-streaming-con-apache-kafka)
+10. [Consumo Analítico: Reporte Estático en Python](#-consumo-analítico-reporte-estático-en-python)
+11. [Consumo Operacional: Dashboard en Tiempo Real (Streamlit)](#-consumo-operacional-dashboard-en-tiempo-real-streamlit)
+12. [Estructura del Repositorio y Scripts](#-estructura-del-repositorio-y-scripts)
+13. [Guía de Instalación y Reproducción Paso a Paso](#-guía-de-instalación-y-reproducción-paso-a-paso)
+14. [Despliegue en AWS Lightsail y CI/CD](#-despliegue-en-aws-lightsail-y-cicd)
+15. [Alineación con los ODS y Licencia](#-alineación-con-los-ods-y-licencia)
 
 ---
 
-## Arquitectura
+## 💡 Articulación de Generación de Doble Valor
+
+Uno de los principales aportes de esta arquitectura moderna de datos radica en que **una misma infraestructura base alimenta dos cadenas de valor totalmente diferenciadas y complementarias:**
+
+```
+                                      ┌────────────────────────────────────────────────────────┐
+                                      │              ARQUITECTURA DE DATOS BASE                │
+                                      │ Multi-Fuente (GFW+WB+FAO+GeoNames) ➔ Data Lake S3 ➔ GX │
+                                      └──────────────────────────┬─────────────────────────────┘
+                                                                 │
+                                ┌────────────────────────────────┴────────────────────────────────┐
+                                ▼                                                                 ▼
+   ┌─────────────────────────────────────────────────────────┐       ┌─────────────────────────────────────────────────────────┐
+   │             ⚡ FLUJO OPERACIONAL (TIEMPO REAL)           │       │             📊 FLUJO ANALÍTICO (ESTRATÉGICO)            │
+   ├─────────────────────────────────────────────────────────┤       ├─────────────────────────────────────────────────────────┤
+   │ • Motor: Apache Kafka + Pipeline ML Serializado         │       │ • Motor: Apache Airflow + PostgreSQL Star Schema        │
+   │ • Consumo: Dashboard Reactivo Streamlit en Vivo         │       │ • Consumo: Reporte Analítico Estático en Python         │
+   │ • Latencia: < 15 ms por mensaje                         │       │ • Frecuencia: Batch diario consolidado                  │
+   │ • Objetivo: Alerta temprana y despacho táctico          │       │ • Objetivo: Evaluación macro, políticas y ODS           │
+   │ • Acción: Desplegar brigadas ante amenazas a            │       │ • Acción: Cuantificar emisiones CO₂e IPCC Tier 1        │
+   │   bosques primarios vírgenes antes de su quema total.   │       │   y correlacionar avance agropecuario con PIB.          │
+   └─────────────────────────────────────────────────────────┘       └─────────────────────────────────────────────────────────┘
+```
+
+### 1. Valor Operacional (Táctico / Streaming)
+- **Problema de Negocio:** Las alertas satelitales tardan días en ser consolidadas en bases de datos tradicionales, perdiendo la ventana crítica para interceptar talas ilegales o controlar quemas no autorizadas.
+- **Solución Implementada:** El productor de Kafka emite eventos en tiempo real simulando la llegada de detecciones satelitales. Un consumidor especializado carga el pipeline de Machine Learning previamente entrenado (`scikit-learn`), calcula la probabilidad de riesgo y clasifica instantáneamente si la deforestación está ocurriendo sobre **bosque primario intacto** (riesgo crítico).
+- **Impacto:** Permite a guardaparques y autoridades ambientales priorizar patrullajes en campo hacia frentes de alto valor ecológico en menos de 60 segundos, descartando falsas alarmas o desmontes en rastrojos secundarios.
+
+### 2. Valor Analítico (Estratégico / Batch)
+- **Problema de Negocio:** Los tomadores de decisiones requieren series históricas consistentes, trazabilidad de calidad garantizada y cruces macroeconómicos para formular políticas públicas y cumplir compromisos climáticos internacionales.
+- **Solución Implementada:** El pipeline batch orquestado por Airflow valida el 100% de los datos mediante Great Expectations, genera dimensiones estandarizadas y puebla un **Star Schema** en PostgreSQL. A partir de este modelo, un script de Python genera un reporte estático con métricas consolidadas, tendencias temporales y balances de carbono.
+- **Impacto:** Facilita la rendición de cuentas sobre los compromisos climáticos (ODS 13 y 15), la regulación de la cadena de suministro de soya y carne (EU Deforestation Regulation) y el balance de emisiones de CO₂e.
+
+---
+
+## 🏛️ Arquitectura General del Sistema
 
 ![Arquitectura AWS - Deforestation Alert ETL](docs/img/architecture.png)
 
-> El diagrama editable en formato draw.io (estilo AWS Architecture) está disponible en [`docs/architecture.drawio`](docs/architecture.drawio).
-
-### Diagrama de Flujo del Pipeline (Mermaid)
-
-```mermaid
-flowchart LR
-    %% Subgrafo 1: Fuentes de Datos
-    subgraph G1 ["🌐 1. Fuentes Externas"]
-        direction TB
-        S_GFW["🛰️ <b>Global Forest Watch</b><br/><i>API REST (Alertas 2022-2026)</i>"]
-        S_WB["🏛️ <b>World Bank Open Data</b><br/><i>API REST (PIB, Tierra Agrícola)</i>"]
-        S_FAO["🌾 <b>FAO FAOSTAT</b><br/><i>Bulk CSV (Producción y Soya)</i>"]
-        S_GEO["📍 <b>GeoNames</b><br/><i>Data Dump (Localidades BOL/COL)</i>"]
-        S_PA["🏞️ <b>WDPA / Protected Areas</b><br/><i>Web Scraping (Parques Naturales)</i>"]
-    end
-
-    %% Subgrafo 2: AWS Cloud & Orquestación
-    subgraph G2 ["☁️ 2. AWS Lightsail & Orquestación"]
-        direction TB
-        GHA["🚀 <b>GitHub Actions</b><br/><i>Cron 22:00 UTC / Push main</i>"]
-        
-        subgraph LIGHTSAIL ["🖥️ AWS Lightsail (Ubuntu 22.04)"]
-            direction TB
-            AIRFLOW["🌪️ <b>Apache Airflow (:9179)</b><br/><i>DAG: deforestation_etl_dag</i>"]
-            
-            subgraph SCRIPTS ["⚙️ Extracción & Carga"]
-                direction TB
-                SYNC["sync_alerts.py<br/><i>(Incremental GFW)</i>"]
-                EXT["download_*.py / scrape_*.py<br/><i>(Fuentes secundarias)</i>"]
-                UP["upload_to_s3.py"]
-            end
-        end
-    end
-
-    %% Subgrafo 3: Almacenamiento & Distribución
-    subgraph G3 ["🪣 3. Storage & Distribución"]
-        direction TB
-        S3[("Amazon S3 Bucket<br/><b>deforestacion-alert-etl/</b><br/>├── gfw/*.csv<br/>└── external/*/*.csv")]
-        PROXY["🔀 <b>HTTPS Data Proxy</b><br/><code>docs.jhoanhurtado.com</code>"]
-    end
-
-    %% Subgrafo 4: Control de Calidad & Procesamiento
-    subgraph G4 ["🛡️ 4. Calidad & ETL Pipeline"]
-        direction TB
-        FETCH["fetch_from_proxy.py<br/><i>Descarga rápida baseline</i>"]
-        GX["🛡️ <b>Great Expectations</b><br/><i>validate_quality.py</i><br/>✔️ Rangos espaciales BOL/COL<br/>✔️ No nulidad y completitud"]
-        NOTEBOOK["📓 <b>05_etl_pipeline.ipynb</b><br/><i>Limpieza, enriquecimiento<br/>y cruce espacial KD-Tree</i>"]
-    end
-
-    %% Subgrafo 5: Data Warehouse & Entrega de Valor
-    subgraph G5 ["📊 5. Data Warehouse & Analítica"]
-        direction TB
-        DWH[("🐘 <b>PostgreSQL DWH</b><br/>Star Schema Dimensional<br/><i>fact_alerts + 7 dimensiones</i>")]
-        VIZ["📈 <b>Análisis & Insights</b><br/>• Hotspots & Clusters de alerta<br/>• Emisiones CO₂ (Tier 1 IPCC)<br/>• Expansión frontera agrícola"]
-        ODS["🎯 <b>Impacto ODS</b><br/>• ODS 13: Acción por el Clima<br/>• ODS 15: Ecosistemas Terrestres"]
-    end
-
-    %% Flujos de conexión y dependencias
-    GHA -- "Trigger diario" --> AIRFLOW
-    AIRFLOW --> SYNC & EXT
-    G1 --> SYNC & EXT
-    SYNC & EXT --> UP
-    UP --> S3
-    S3 --> PROXY
-    PROXY --> FETCH
-    FETCH --> GX
-    GX -- "Quality Gate OK" --> NOTEBOOK
-    NOTEBOOK -- "Carga Incremental" --> DWH
-    DWH --> VIZ
-    VIZ --> ODS
-
-    %% Estilos visuales con paleta profesional
-    classDef sourceStyle fill:#EBF5FB,stroke:#2980B9,stroke-width:2px,color:#1B4F72;
-    classDef awsStyle fill:#FEF5E7,stroke:#D35400,stroke-width:2px,color:#7E5109;
-    classDef s3Style fill:#E8F8F5,stroke:#16A085,stroke-width:2px,color:#0E6251;
-    classDef gxStyle fill:#EAFAF1,stroke:#27AE60,stroke-width:2px,color:#145A32;
-    classDef dwhStyle fill:#F4ECF7,stroke:#8E44AD,stroke-width:2px,color:#512E5F;
-
-    class S_GFW,S_WB,S_FAO,S_GEO,S_PA sourceStyle;
-    class GHA,AIRFLOW,SYNC,EXT,UP awsStyle;
-    class S3,PROXY s3Style;
-    class FETCH,GX,NOTEBOOK gxStyle;
-    class DWH,VIZ,ODS dwhStyle;
-```
-
----
-
-## Orquestación con Apache Airflow
-
-El pipeline está orquestado mediante **Apache Airflow**, ejecutándose automáticamente todas las noches a las **22:00 (10:00 PM)** (`0 22 * * *`).
-
-### Visualización del DAG (`deforestation_etl_dag`)
-
-![Apache Airflow DAG](docs/img/deforestation_etl_dag-graph.png)
-
-> **Ruta de imagen git compatible:** [`docs/img/deforestation_etl_dag-graph.png`](docs/img/deforestation_etl_dag-graph.png).
-
-### Acceso a la interfaz Web de Airflow
-- **URL pública / Subdominio:** `https://airflow.jhoanhurtado.com` redirigido mediante Nginx reverse proxy.
-- **Credenciales automáticas:**
-  - **Usuario:** `admin`
-  - **Contraseña:** `admin`
-  - **Nombre:** Jhoan Hurtado
-  - **Email:** `jhoanezequielh@gmail.com`
-  - **Rol:** `Admin`
-
-### Pipeline de Tareas en el DAG (Arquitectura Medallion & Calidad)
-El flujo fue refactorizado siguiendo los principios de arquitectura de datos moderna y tareas atómicas desacopladas:
-1. `sync_gfw_alerts`, `download_worldbank`, `download_faostat`, `download_geonames`, `scrape_protected_areas`: **Ingesta paralela multi-fuente** desde APIs públicas y web scraping con manejo estricto de excepciones (fallan con `exit 1` si la API no responde o no genera registros).
-2. `upload_to_s3_bronze`: **Persistencia inmutable en Data Lake (Bronze Layer)**. Garantiza que la materia prima cruda quede respaldada en Amazon S3 antes de cualquier transformación o limpieza.
-3. `validate_data_quality`: **Data Quality Gate (Great Expectations)**. Audita el **100% de los datos** (sin submuestreo). Si un dataset viene vacío, incompleto o corrompido, la validación falla (`exit 1`) y aborta de forma preventiva la carga al almacén.
-4. `transform_and_enrich_data`: **Capa Silver (Transformación y Enriquecimiento)**. Normaliza formatos, limpia valores atípicos y calcula distancias esféricas geodésicas mediante un árbol espacial `BallTree` (métrica Haversine en radianes) sin productos cartesianos no espaciados.
-5. `load_to_data_warehouse`: **Capa Gold (Star Schema en PostgreSQL)**. Ejecuta el DDL relacional, carga las dimensiones con llaves surrogate (`_id`), resuelve claves foráneas hacia `dim_economic_context` (evitando duplicar series macroeconómicas por cada alerta) y puebla `fact_alerts` con índices optimizados.
-6. `generate_analytics_and_viz`: **Capa de Consumo & Business Insights**. Ejecuta de forma independiente las consultas SQL del DWH y genera dashboards de negocio exportados en alta resolución.
-
----
-
-## Control de Calidad (Great Expectations — Quality Gate)
-
-Para cumplir con los criterios de validación de calidad de datos exigidos para la segunda entrega, se integra el script [`scripts/validate_quality.py`](scripts/validate_quality.py) respaldado por **Great Expectations (GX)** como compuerta obligatoria:
-- **Auditoría Exhaustiva al 100% de Filas:** Se eliminó cualquier submuestreo artificial (`nrows`), validando la totalidad de los ~1.5 millones de alertas y catálogos completos en memoria en menos de 2 segundos.
-- **Tolerancia Cero a Datasets Vacíos:** Un archivo vacío (0 bytes, 0 filas o ausente) genera una falla crítica inmediata (`return False` / `ExpectTableRowCountToBeBetween(min_value=1)`), deteniendo el pipeline.
-- **Alertas GFW:** Valida no-nulidad de coordenadas (`latitude`, `longitude`), límites espaciales geográficos estrictos (`[-90, 90]`, `[-180, 180]`), presencia de fecha de alerta, densidad de dosel arbóreo entre 0 y 100%, y categorías de confianza válidas (`nominal`, `high`, `highest`).
-- **World Bank:** Valida códigos de país ISO (`BOL`, `COL`), nombres de indicadores no nulos y rango temporal coherente (`2000–2030`).
-- **FAOSTAT:** Valida métricas agropecuarias, elementos de producción y rangos temporales.
-- **GeoNames:** Valida identificadores únicos de geonames y coordenadas lat/lon globales.
-- **Áreas Protegidas:** Valida nombres no vacíos, categorización de manejo y códigos de país.
-
----
-
-## Fuentes de datos y Storage S3
-
-Todos los datasets están **100% excluidos del repositorio Git** mediante `.gitignore`. Deben residir en el bucket S3 bajo el prefijo `deforestacion-alert-etl/` para ser consumidos tanto por los notebooks analíticos como por el pipeline de Lightsail.
-
-### Mapeo de Datasets, Rutas S3 y URLs del Proxy
-
-| # | Dataset / Contenido | Ruta en S3 (`s3://<bucket>/`) | URL Proxy de Descarga (`https://docs.jhoanhurtado.com/`) | Ruta Local Destino |
-|---|---------------------|-------------------------------|----------------------------------------------------------|--------------------|
-| 1 | **GFW Alertas Bolivia (2022–2026)** | `deforestacion-alert-etl/gfw/bol_alerts_2022-01-01_2026-07-31.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/gfw/bol_alerts_2022-01-01_2026-07-31.csv` | `data/csv/bol_alerts_2022-01-01_2026-07-31.csv` |
-| 2 | **GFW Alertas Colombia (2022–2026)** | `deforestacion-alert-etl/gfw/col_alerts_2022-01-01_2026-07-31.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/gfw/col_alerts_2022-01-01_2026-07-31.csv` | `data/csv/col_alerts_2022-01-01_2026-07-31.csv` |
-| 3 | **World Bank Indicadores Económicos** | `deforestacion-alert-etl/external/worldbank/worldbank_indicators.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/worldbank/worldbank_indicators.csv` | `data/external/worldbank/worldbank_indicators.csv` |
-| 4 | **FAOSTAT Producción Agropecuaria** | `deforestacion-alert-etl/external/faostat/faostat_production.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/faostat/faostat_production.csv` | `data/external/faostat/faostat_production.csv` |
-| 5 | **GeoNames Localidades Pobladas** | `deforestacion-alert-etl/external/geonames/geonames_places.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/geonames/geonames_places.csv` | `data/external/geonames/geonames_places.csv` |
-| 6 | **Áreas Protegidas y Parques Nacionales** | `deforestacion-alert-etl/external/protected_areas/protected_areas.csv` | `https://docs.jhoanhurtado.com/deforestacion-alert-etl/external/protected_areas/protected_areas.csv` | `data/external/protected_areas/protected_areas.csv` |
-
-
-## Estructura del proyecto
-
-```
-deforestation-alert-etl/
-├── .github/
-│   └── workflows/
-│       ├── deploy.yml          # CI/CD: deploy scripts y Airflow a Lightsail (push main)
-│       └── batch.yml           # Cron diario (22:00): ejecuta DAG / batch en Lightsail
-├── dags/
-│   └── deforestation_etl_dag.py # DAG de Apache Airflow (schedule 22:00)
-├── data/
-│   ├── csv/                    # CSVs GFW (excluidos del repo por .gitignore)
-│   ├── external/               # Datasets externos (excluidos del repo)
-│   │   ├── worldbank/
-│   │   ├── faostat/
-│   │   ├── geonames/
-│   │   └── protected_areas/
-│   └── results/                # Figuras generadas por los notebooks
-├── docs/
-│   ├── architecture.drawio     # Diagrama de arquitectura (editable)
-│   ├── setup.md                # Instrucciones detalladas de configuración
-│   ├── datasets_externos.md    # Documentación de fuentes externas
-│   └── img/
-│       └── deforestation_etl_dag-graph.png     # Captura de pantalla de la interfaz de Airflow
-├── notebooks/
-│   ├── 01_eda_gfw.ipynb        # EDA del dataset GFW raw
-│   ├── 02_eda_worldbank.ipynb  # EDA indicadores World Bank
-│   ├── 03_eda_faostat.ipynb    # EDA producción FAO
-│   ├── 04_eda_geonames.ipynb   # EDA localidades GeoNames
-│   └── 05_etl_pipeline.ipynb   # ETL unificado + 8 análisis analíticos + Star Schema
-├── scripts/
-│   ├── batch_download.py       # Orquestador: ejecuta downloads + quality + S3
-│   ├── sync_alerts.py          # Descarga incremental de alertas GFW (evita full download inicial)
-│   ├── download_dataset.py     # Descarga completa histórica GFW
-│   ├── download_worldbank.py   # Descarga indicadores World Bank API
-│   ├── download_faostat.py     # Descarga producción agrícola FAO (bulk CSV)
-│   ├── download_geonames.py    # Descarga localidades pobladas GeoNames
-│   ├── scrape_protected_areas.py # Extracción de parques y reservas naturales
-│   ├── validate_quality.py     # Great Expectations — suite de validación de calidad
-│   ├── upload_to_s3.py         # Sube CSVs al bucket S3 (prefijo deforestacion-alert-etl/)
-│   ├── fetch_from_proxy.py     # Descarga CSVs desde https://docs.jhoanhurtado.com
-│   └── gfw_signup.py           # Registro y obtención de API key GFW
-├── config/
-│   └── airflow_local.cfg       # Configuración base de desarrollo para Apache Airflow local
-├── .env.example                # Plantilla de variables de entorno
-├── .gitignore
-├── start_airflow_local.sh      # Script 100% automático para inicializar y lanzar Airflow localmente
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Scripts — qué hace cada uno
-
-### `validate_quality.py` ★
-Control de calidad formal de datos con **Great Expectations**. Ejecuta suites de expectativas sobre los CSVs de GFW, World Bank, GeoNames y Áreas Protegidas antes de permitir la inserción a base de datos.
-```bash
-python scripts/validate_quality.py
-```
-
-### `batch_download.py`
-Orquestador de extracción y carga. Llama en secuencia a todos los scripts de descarga, valida calidad con Great Expectations y luego sube a S3. Diseñado para correr como tarea programada o fallback a las 22:00.
-
-```bash
-python scripts/batch_download.py                  # descarga todo + quality check + S3
-python scripts/batch_download.py --skip-gfw       # omite GFW (solo externos)
-python scripts/batch_download.py --skip-quality   # omite control de calidad
-python scripts/batch_download.py --skip-upload    # no sube a S3
-```
-
-### `sync_alerts.py`
-Descarga incremental de alertas GFW. Detecta automáticamente la última fecha en el CSV existente y descarga solo los días nuevos. Usa ventanas adaptativas por densidad de alertas.
-
-```bash
-python scripts/sync_alerts.py                     # desde última fecha hasta ayer
-python scripts/sync_alerts.py --daily             # solo el día de ayer (modo cron)
-python scripts/sync_alerts.py --from 2026-01-01   # fuerza inicio desde esa fecha
-python scripts/sync_alerts.py --country BOL       # solo un país
-```
-
-### `download_dataset.py`
-Descarga inicial completa del dataset GFW. Genera los CSVs históricos completos para BOL y COL. Solo necesario la primera vez.
-
-```bash
-python scripts/download_dataset.py   # menú interactivo
-```
-
-### `download_worldbank.py`
-Descarga 4 indicadores del World Bank API para Bolivia y Colombia (2015–2024): PIB, población rural, tierra agrícola y exportaciones agrícolas.
-
-```bash
-python scripts/download_worldbank.py
-# Salida: data/external/worldbank/worldbank_indicators.csv
-```
-
-### `download_faostat.py`
-Descarga el bulk CSV de producción agrícola de FAOSTAT para Américas y filtra Bolivia y Colombia. Productos: Soybeans, Cattle, Sugar cane, Oil palm fruit.
-
-```bash
-python scripts/download_faostat.py
-# Salida: data/external/faostat/faostat_production.csv
-```
-
-### `download_geonames.py`
-Descarga los dumps ZIP de GeoNames para Bolivia (BO.zip) y Colombia (CO.zip) y extrae todas las localidades pobladas (~61k lugares con lat/lon).
-
-```bash
-python scripts/download_geonames.py
-# Salida: data/external/geonames/geonames_places.csv
-```
-
-### `upload_to_s3.py`
-Sube todos los CSVs de `data/csv/` y `data/external/` al bucket S3 bajo el prefijo `deforestacion-alert-etl/`.
-- **Eliminación automática:** Tras confirmar la subida exitosa a S3, elimina automáticamente las copias locales para ahorrar espacio y cumplir la política de almacenamiento.
-- **Trazabilidad y Logs:** Registra cada archivo subido y eliminado en `logs/s3_upload.log` y sincroniza el archivo de log al bucket S3 (`deforestacion-alert-etl/logs/`).
-
-```bash
-python scripts/upload_to_s3.py                  # sube a S3 y elimina locales automáticamente
-python scripts/upload_to_s3.py --keep-local     # sube a S3 conservando copias locales
-python scripts/upload_to_s3.py --dry-run        # muestra qué subiría sin realizar cambios
-```
-
-### `fetch_from_proxy.py`
-Descarga los CSVs desde el proxy inverso (`https://docs.jhoanhurtado.com/deforestacion-alert-etl/...`) al entorno local.
-- **Detección inteligente:** Si el archivo local ya existe, lo utiliza directamente sin descargar innecesariamente.
-- **Fuerza descarga:** Permite `--force` para sobreescribir.
-
-```bash
-python scripts/fetch_from_proxy.py              # descarga solo los que no existan
-python scripts/fetch_from_proxy.py --force      # fuerza la descarga de todos
-python scripts/fetch_from_proxy.py --only gfw   # solo alertas GFW
-python scripts/fetch_from_proxy.py --only external  # solo datasets externos
-```
-
-### `gfw_signup.py`
-Registra un email en la API de Global Forest Watch y obtiene la API key. Solo necesario la primera vez.
-
-```bash
-python scripts/gfw_signup.py
-```
-
----
-
-## Notebooks — orden de ejecución
-
-| Orden | Notebook | Propósito |
-|-------|----------|-----------|
-| 1 | `01_eda_gfw.ipynb` | EDA del CSV raw GFW. §1-4: estructura, calidad, distribuciones. §5: tasas de cambio temporal. §6: patrones espaciales (hexbin, drivers). §7: causalidad con indicadores económicos. §8: proximidad a centros poblados. |
-| 2 | `02_eda_worldbank.ipynb` | EDA indicadores económicos. §1-4: estructura, tendencias de PIB, tierra agrícola y población rural 2015–2024. **Análisis extendido:** correlaciones entre indicadores (heatmap) y tendencias normalizadas (base=100). |
-| 3 | `03_eda_faostat.ipynb` | EDA producción agrícola. §1-4: estructura, producción por cultivo y área cosechada. **Análisis extendido:** composición de producción (área apilada) y variación YoY por commodity. |
-| 4 | `04_eda_geonames.ipynb` | EDA localidades pobladas. §1-5: estructura, distribución geográfica, población, top localidades. **Análisis extendido:** top-10 más poblados por país y densidad espacial (hexbin). |
-| 5 | `05_etl_pipeline.ipynb` | **Pipeline completo:** carga las 4 fuentes → transforma → merge → migra al star schema → carga incremental → EDA desde DB → visualizaciones integradas. |
-
----
-
-## Instalación y configuración
-
-### 1. Clonar el repositorio
-
-```bash
-git clone https://github.com/<tu-usuario>/deforestation-alert-etl.git
-cd deforestation-alert-etl
-```
-
-### 2. Crear entorno virtual con Python 3.12
-
-```bash
-python3.12 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-```
-
-### 3. Instalar dependencias
-
-```bash
-pip install -r requirements.txt
-```
-
-> **Nota macOS (Homebrew):** si `pip` falla con `externally-managed-environment`, asegúrate de estar dentro del venv (`which python` debe apuntar a `venv/bin/python`).
-
-### 4. Configurar variables de entorno
-
-```bash
-cp .env.example .env
-# Edita .env con tus credenciales
-```
-
-Variables requeridas:
-
-| Variable | Descripción |
-|----------|-------------|
-| `GFW_API_KEY` | API key de Global Forest Watch |
-| `PG_USER` / `PG_PASSWORD` / `PG_HOST` / `PG_PORT` / `PG_DB` | Conexión PostgreSQL |
-| `S3_BUCKET` | Nombre del bucket S3 |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` | Credenciales AWS |
-| `DATA_PROXY_URL` | URL base del proxy inverso que expone los CSVs desde S3 |
-
-### 5. Crear la base de datos PostgreSQL
-
-```bash
-# macOS
-brew install postgresql@16
-brew services start postgresql@16
-psql -U postgres -c "CREATE DATABASE deforestation;"
-```
-
-### 6. Obtener API key de GFW (primera vez)
-
-```bash
-python scripts/gfw_signup.py
-# Copia la key generada en .env → GFW_API_KEY
-```
-
----
-
-## Cómo ejecutar el pipeline
-
-### Opción A — Ejecución local completa vía Terminal (Script automatizado)
-
-Esta es la forma más rápida y directa de correr todo el pipeline localmente sin abrir interfaces gráficas:
-
-```bash
-# 1. Asegúrate de tener tu entorno virtual activo y el .env configurado
-source venv/bin/activate
-
-# 2. Descargar los datasets consolidados desde el almacenamiento S3 (vía Proxy HTTPS)
-python scripts/fetch_from_proxy.py
-
-# 3. (Opcional) Sincronizar alertas adicionales recientes desde la API de GFW
-python scripts/sync_alerts.py --daily
-
-# 4. Validar calidad e integridad de los datos con Great Expectations
-python scripts/validate_quality.py
-
-# 5. Ejecutar el pipeline ETL completo y cargar los datos a PostgreSQL
-jupyter nbconvert --to notebook --execute notebooks/05_etl_pipeline.ipynb --output notebooks/05_etl_pipeline_executed.ipynb
-
-# 6. Sincronizar resultados a S3 y limpiar archivos locales temporales
-python scripts/upload_to_s3.py
-```
-
----
-
-### Opción B — Ejecución local interactiva paso a paso (Jupyter Notebooks)
-
-Si deseas explorar las transformaciones, diagramas y análisis EDA de forma interactiva:
-
-```bash
-# 1. Activar el entorno virtual
-source venv/bin/activate
-
-# 2. Garantizar que los CSVs base existan localmente
-python scripts/fetch_from_proxy.py
-
-# 3. Lanzar Jupyter Notebook
-jupyter notebook
-```
-
-**Orden de ejecución de los notebooks en el navegador:**
-1. `notebooks/01_eda_gfw.ipynb`: Análisis exploratorio de alertas satelitales (GFW).
-2. `notebooks/02_eda_worldbank.ipynb`: Indicadores socioeconómicos del Banco Mundial.
-3. `notebooks/03_eda_faostat.ipynb`: Datos agropecuarios y cultivos de FAOSTAT.
-4. `notebooks/04_eda_geonames.ipynb`: Georreferenciación y proximidad a centros poblados.
-5. `notebooks/05_etl_pipeline.ipynb`: **ETL Unificado**, creación del Star Schema en PostgreSQL y 8 análisis analíticos de negocio.
-
----
-
-### Opción C — Lanzar Apache Airflow Web de forma 100% Local
-
-Para abrir la interfaz web de Airflow en tu máquina local (`http://localhost:9179`), monitorear el DAG y disparar ejecuciones idénticas a las del servidor sin necesidad de conectarte por SSH:
-
-```bash
-# 1. Ejecutar el script que inicializa el entorno local y levanta Airflow Standalone
-./start_airflow_local.sh
-```
-
-- **URL Web Local**: `http://localhost:9179`
-- **Usuario**: `admin`
-- **Contraseña**: `admin`
-- El script aísla la base de datos y logs en la carpeta local `airflow_local/`, detecta automáticamente las rutas relativas del proyecto y carga el DAG `deforestation_etl_dag` sin alterar tus configuraciones globales.
-
-> Si prefieres probar únicamente la ejecución por consola sin interfaz web:
-> ```bash
-> export AIRFLOW_HOME="$(pwd)/airflow_local"
-> export AIRFLOW__CORE__DAGS_FOLDER="$(pwd)/dags"
-> airflow dags test deforestation_etl_dag 2026-10-08
-> ```
-
-### Opción D — Orquestación automática en Lightsail (Airflow / Cron 22:00)
-
-El servidor Lightsail ejecuta automáticamente todas las noches a las **22:00 (10:00 PM)**:
-- Mediante el scheduler de Apache Airflow (`deforestation_etl_dag`), visible en `https://airflow.jhoanhurtado.com`.
-- Con respaldo cron en Lightsail:
-```bash
-0 22 * * * /home/ubuntu/deforestation-alert-etl/venv/bin/python /home/ubuntu/deforestation-alert-etl/scripts/batch_download.py >> /home/ubuntu/logs/batch.log 2>&1
-```
-
-Para forzar manualmente la ejecución:
-- En la interfaz web de Airflow: activar y presionar **Trigger DAG**.
-- En GitHub: ir a **Actions → Daily Batch Download → Run workflow**.
-
-## GitHub Actions CI/CD
-
-El repositorio cuenta con dos flujos de trabajo automatizados en [`.github/workflows/`](.github/workflows/):
-
-### 1. `deploy.yml` — Despliegue Continuo y Provisión de Airflow
-Se dispara automáticamente con cada `push` a la rama `main` que modifique scripts, DAGs o dependencias:
-1. **Conexión SSH**: Accede de forma segura a la instancia Lightsail vía SSH.
-2. **Sincronización Git**: Ejecuta `git pull origin main` y actualiza paquetes (`pip install -r requirements.txt`).
-3. **Inyección de Secretos**: Genera el archivo `.env` en el servidor con los secrets de GitHub.
-4. **Inicialización y Migración de Airflow**:
-   - Ejecuta migraciones de base de datos (`airflow db migrate`).
-   - Aprovisiona el usuario administrador (`admin:admin` con rol `Admin`).
-5. **Configuración de Servicios Systemd**:
-   - `airflow-webserver.service` en el puerto **9179**.
-   - `airflow-scheduler.service` para la orquestación programada.
-6. **Verificación de Salud**: Valida que los servicios estén activos (`active (running)`) y el puerto 9179 respondiendo.
-
-### 2. `batch.yml` — Ejecución Diaria Programada
-Se activa automáticamente todos los días a las **22:00 (10:00 PM)** (`0 22 * * *`) o manualmente vía `workflow_dispatch`:
-- **Disparo del DAG**: Ejecuta `airflow dags trigger deforestation_etl_dag`.
-- **Mecanismo de Respaldo**: En caso de indisponibilidad temporal de Airflow, ejecuta automáticamente el script resiliente `batch_download.py` con subida a S3 y validación de calidad.
-
----
-
-## Modelo de datos (Star Schema)
-
-El Data Warehouse en **PostgreSQL** implementa un modelo dimensional en **Esquema de Estrella (Star Schema)** optimizado para analítica OLAP de series temporales, consultas espaciales y modelos de causalidad macroeconómica.
-
-### Diagrama Arquitectónico del Star Schema
+### Diagrama de Flujo Integral (Mermaid)
 
 ```mermaid
 flowchart TB
-    %% 1. Dimensiones Temporales & Calidad
-    subgraph D_TIME ["📅 Dimensiones Temporales & Calidad"]
+    %% Subgrafo 1: Fuentes de Datos Externas
+    subgraph G1 ["🌐 1. Fuentes de Datos Multi-Origen"]
         direction TB
-        DIM_DATE["<b>dim_date</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>date_id</b>: int [PK]<br/>• date: date<br/>• year: int<br/>• month: int<br/>• week: int<br/>• day_of_week: int"]
-        DIM_CONF["<b>dim_confidence</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>confidence_id</b>: int [PK]<br/>• confidence: string<br/>• is_high_conf: boolean"]
+        S_GFW["🛰️ <b>Global Forest Watch (API)</b><br/><i>Alertas satelitales GLAD/RADD (2022-2026)</i>"]
+        S_WB["🏛️ <b>World Bank Open Data (API)</b><br/><i>PIB, Población Rural, % Tierra Agrícola</i>"]
+        S_FAO["🌾 <b>FAO FAOSTAT (Bulk CSV)</b><br/><i>Producción de Soya y Ganadería</i>"]
+        S_GEO["📍 <b>GeoNames Database (Dump)</b><br/><i>Localidades pobladas BOL & COL</i>"]
     end
 
-    %% 2. Dimensiones Espaciales & Territoriales
-    subgraph D_GEO ["📍 Dimensiones Espaciales & Territoriales"]
+    %% Subgrafo 2: Data Lake Bronze & Quality Gate
+    subgraph G2 ["🛡️ 2. Ingesta, Data Lake & Calidad"]
         direction TB
-        DIM_LOC["<b>dim_location</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>location_id</b>: int [PK]<br/>• country_code: string<br/>• country_name: string<br/>• adm1_code: string<br/>• adm1_name: string"]
-        DIM_PLACES["<b>dim_places</b> <i>(GeoNames ★)</i><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>place_id</b>: int [PK]<br/>• place_name: string<br/>• latitude, longitude: float<br/>• population: int"]
+        S3_BRONZE[("🪣 <b>Amazon S3 (Bronze)</b><br/><i>deforestacion-alert-etl/<br/>Data Cruda Inmutable</i>")]
+        GX["🛡️ <b>Great Expectations</b><br/><i>validate_quality.py (Quality Gate)<br/>100% registros • Tolerancia cero vacíos</i>"]
+        SILVER["⚙️ <b>Transformación Silver</b><br/><i>transform_and_enrich.py<br/>Geodesia esférica Haversine BallTree</i>"]
     end
 
-    %% 3. Tabla de Hechos Central
-    subgraph FACT_ZONE ["⭐ TABLA DE HECHOS CENTRAL (DWH CORE)"]
-        FACT["<b>fact_alerts</b><br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>alert_id</b>: bigint [PK]<br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>🔗 <b>date_id</b>: int [FK]<br/>🔗 <b>location_id</b>: int [FK]<br/>🔗 <b>driver_id</b>: int [FK]<br/>🔗 <b>land_cover_id</b>: int [FK]<br/>🔗 <b>confidence_id</b>: int [FK]<br/>🔗 <b>econ_id</b>: int [FK] ★<br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>📊 <i>latitude, longitude</i>: float<br/>📊 <i>tree_cover_pct</i>: float<br/>📊 <i>is_primary_forest</i>: boolean<br/>📊 <i>protected_area</i>: string<br/>📊 <i>is_soy_area</i>: boolean<br/>📊 <b>dist_place_km</b>: float ★ <i>(Haversine KD-Tree)</i>"]
-    end
-
-    %% 4. Dimensiones Biofísicas & Causalidad
-    subgraph D_ENV ["🌱 Dimensiones Biofísicas"]
+    %% Subgrafo 3: Orquestación Airflow
+    subgraph G3 ["🌪️ 3. Orquestación Airflow (Medallion)"]
         direction TB
-        DIM_DRIVER["<b>dim_driver</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>driver_id</b>: int [PK]<br/>• driver_name: string"]
-        DIM_LAND["<b>dim_land_cover</b><br/>━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>land_cover_id</b>: int [PK]<br/>• land_cover_class: string"]
+        AIRFLOW["🌪️ <b>Apache Airflow (:9179)</b><br/><i>DAG: deforestation_etl_dag</i><br/>Admin Auth SimpleAuthManager"]
     end
 
-    %% 5. Dimensión Macroeconómica
-    subgraph D_ECON ["📈 Dimensión Macroeconómica & Agrícola"]
+    %% Subgrafo 4: Rama Analítica (Gold / DWH)
+    subgraph G4 ["📊 4. Ruta Analítica (Histórica)"]
         direction TB
-        DIM_ECON["<b>dim_economic_context</b> <i>(WB + FAO ★)</i><br/>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━<br/>🔑 <b>econ_id</b>: int [PK]<br/>• country_code: string<br/>• year: int<br/>• gdp_usd: float<br/>• agricultural_land_pct: float<br/>• soy_production_t: float<br/>• soy_area_ha: float"]
+        DWH[("🐘 <b>PostgreSQL Data Warehouse</b><br/>Star Schema Dimensional<br/><i>fact_deforestation_alert + 5 dimensiones</i>")]
+        STATIC_REP["📄 <b>Reporte Analítico Estático</b><br/><i>scripts/generate_static_report.py</i><br/>Visualizaciones & Carbono IPCC"]
     end
 
-    %% Relaciones dimensionales 1:N hacia la tabla de hechos
-    DIM_DATE -->|1:N| FACT
-    DIM_CONF -->|1:N| FACT
-    DIM_LOC -->|1:N| FACT
-    DIM_PLACES -.->|Proximidad Espacial| FACT
-    DIM_DRIVER -->|1:N| FACT
-    DIM_LAND -->|1:N| FACT
-    DIM_ECON -->|1:N| FACT
+    %% Subgrafo 5: Rama Operacional (Streaming & ML)
+    subgraph G5 ["⚡ 5. Ruta Operacional (Streaming & ML)"]
+        direction TB
+        PRODUCER["📤 <b>Kafka Producer</b><br/><i>scripts/kafka_producer.py</i><br/>Payload sin Target (No Leakage)"]
+        KAFKA_BUS{{"📡 <b>Apache Kafka Broker</b><br/>Topic: <code>deforestation-alerts-stream</code>"}}
+        CONSUMER["📥 <b>Kafka Consumer + ML Inference</b><br/><i>scripts/kafka_consumer.py</i><br/>Inferencia serializada RandomForest"]
+        STREAMLIT["🖥️ <b>Dashboard Streamlit en Vivo</b><br/><i>streamlit_app.py</i><br/>Mapa Pydeck • Radar de Alertas • KPIs"]
+    end
 
-    %% Estilos diferenciados por dominio
-    classDef factStyle fill:#1F2937,stroke:#F59E0B,stroke-width:3px,color:#FFFFFF;
-    classDef timeStyle fill:#EFF6FF,stroke:#3B82F6,stroke-width:2px,color:#1E3A8A;
-    classDef geoStyle fill:#ECFDF5,stroke:#10B981,stroke-width:2px,color:#064E3B;
-    classDef envStyle fill:#FFFBEB,stroke:#F59E0B,stroke-width:2px,color:#78350F;
-    classDef econStyle fill:#FAF5FF,stroke:#8B5CF6,stroke-width:2px,color:#4C1D95;
+    %% Conexiones
+    G1 --> AIRFLOW
+    AIRFLOW --> S3_BRONZE
+    S3_BRONZE --> GX
+    GX -- "Quality Passed" --> SILVER
+    SILVER --> DWH
+    DWH --> STATIC_REP
+    
+    %% Conexión Streaming
+    SILVER -.-> PRODUCER
+    DWH -.-> PRODUCER
+    PRODUCER --> KAFKA_BUS
+    KAFKA_BUS --> CONSUMER
+    CONSUMER --> STREAMLIT
 
-    class FACT factStyle;
-    class DIM_DATE,DIM_CONF timeStyle;
-    class DIM_LOC,DIM_PLACES geoStyle;
-    class DIM_DRIVER,DIM_LAND envStyle;
-    class DIM_ECON econStyle;
+    %% Estilos profesionales
+    classDef srcStyle fill:#EBF5FB,stroke:#2980B9,stroke-width:2px,color:#1B4F72;
+    classDef bronzeStyle fill:#FEF5E7,stroke:#D35400,stroke-width:2px,color:#7E5109;
+    classDef airflowStyle fill:#EAFAF1,stroke:#27AE60,stroke-width:2px,color:#145A32;
+    classDef analStyle fill:#F4ECF7,stroke:#8E44AD,stroke-width:2px,color:#512E5F;
+    classDef operStyle fill:#FDEDEC,stroke:#C0392B,stroke-width:2px,color:#78281F;
+
+    class S_GFW,S_WB,S_FAO,S_GEO srcStyle;
+    class S3_BRONZE,GX,SILVER bronzeStyle;
+    class AIRFLOW airflowStyle;
+    class DWH,STATIC_REP analStyle;
+    class PRODUCER,KAFKA_BUS,CONSUMER,STREAMLIT operStyle;
 ```
 
-### Especificación Relacional (ERD)
+---
+
+## 🛠️ Stack Tecnológico Integral
+
+| Capa / Componente | Herramienta / Tecnología | Propósito en la Arquitectura |
+|-------------------|--------------------------|------------------------------|
+| **Orquestación Batch** | **Apache Airflow 3** | Automatización programada del pipeline Medallion, reintentos y trazabilidad. |
+| **Fuentes de Datos** | **APIs Públicas & Dumps** | Global Forest Watch (GFW), Banco Mundial, FAOSTAT y GeoNames. |
+| **Data Lake (Bronze)** | **Amazon S3** | Persistencia inmutable de datos crudos antes de cualquier transformación. |
+| **Control de Calidad** | **Great Expectations (GX)** | Quality Gate estricto sobre el 100% de datos; bloquea datasets vacíos o corruptos. |
+| **Transformación & Enriquecimiento** | **Python (Pandas, Scipy, BallTree)** | Limpieza, estandarización y cálculo de distancias esféricas Haversine en radianes. |
+| **Almacenamiento Analítico (Gold)** | **PostgreSQL** | Esquema en estrella (Star Schema) relacional con llaves subrogadas e índices optimizados. |
+| **Machine Learning Pipeline** | **Scikit-Learn & Joblib** | Modelo predictivo de riesgo en bosque primario (Random Forest) serializado sin data leakage. |
+| **Streaming de Eventos** | **Apache Kafka (kafka-python-ng)** | Cola de mensajería para simulación y transmisión de eventos en tiempo real. |
+| **Consumo Operacional** | **Streamlit & Pydeck** | Dashboard reactivo con mapa geoespacial en vivo, feed de alertas y métricas streaming. |
+| **Consumo Analítico** | **Python (Matplotlib & Seaborn)** | Generación autónoma de reporte estático en Markdown con balance de emisiones e impulsores. |
+| **CI/CD & Cloud** | **GitHub Actions & AWS Lightsail** | Despliegue continuo y ejecución programada en servidor Linux Ubuntu 22.04. |
+
+---
+
+## 🌐 Fuentes de Datos y Persistencia Bronze (S3)
+
+El proyecto articula cuatro fuentes complementarias para explicar tanto la dimensión física de la deforestación como sus causas socioeconómicas:
+
+1. **Global Forest Watch (GFW):** Alertas satelitales con fecha, coordenadas, densidad de cobertura arbórea (`tree_cover_density`), confianza y clasificación de bosque primario (`is_primary_forest`).
+2. **Banco Mundial (World Bank API):** Indicadores macroeconómicos anuales: Producto Interno Bruto (PIB), porcentaje de tierra agrícola y porcentaje de población rural.
+3. **FAO (FAOSTAT):** Producción y área cosechada de cultivos vinculados a la deforestación en Sudamérica (Soya y Ganadería bovina).
+4. **GeoNames:** Base de datos de más de 61,000 localidades y asentamientos poblados con sus coordenadas exactas en Bolivia y Colombia.
+
+> **Política de Almacenamiento:** Siguiendo las directrices de la arquitectura Medallion, todo archivo descargado se sube inmutablemente a **Amazon S3** (`s3://deforestacion-alert-etl/`) mediante `scripts/upload_to_s3.py`. Los archivos crudos locales se excluyen rigurosamente de Git a través de `.gitignore`.
+
+---
+
+## 🌪️ Orquestación con Apache Airflow & Autenticación
+
+El pipeline se encuentra automatizado a través del DAG [`dags/deforestation_etl_dag.py`](dags/deforestation_etl_dag.py), programado para ejecutarse diariamente a las **22:00 UTC** (`0 22 * * *`).
+
+![Apache Airflow DAG](docs/img/deforestation_etl_dag-graph.png)
+
+### Corrección Definitiva de Autenticación en Airflow 3 (`admin:admin`)
+En Airflow 3, el comando histórico de consola `airflow users create` fue retirado y reemplazado por la arquitectura FastAPI (`SimpleAuthManager`). Se configuró de forma robusta la autenticación para que las credenciales funcionen sin errores en cualquier entorno:
+
+1. **Gestor de Autenticación:**  
+   `AIRFLOW__CORE__AUTH_MANAGER=airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager`
+2. **Definición de Usuario y Rol en Mayúsculas:**  
+   `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS=admin:ADMIN`  
+   `AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS=False`
+3. **Archivo de Contraseñas Cifradas:**  
+   Archivo `$AIRFLOW_HOME/simple_auth_manager_passwords.json` mapeando `admin` a la clave `admin`.
+4. **Credenciales de Acceso:**
+   - **Usuario:** `admin`
+   - **Contraseña:** `admin`
+
+### Tareas Atómicas del DAG
+```
+[sync_gfw_alerts, download_worldbank, download_faostat, download_geonames, scrape_protected_areas]
+                                       │
+                                       ▼ (Ingesta completada)
+                           [upload_to_s3_bronze]
+                                       │
+                                       ▼ (Persistencia inmutable)
+                         [validate_data_quality] (Quality Gate GX)
+                                       │
+                                       ▼ (Solo si calidad es 100% OK)
+                      [transform_and_enrich_data]
+                                       │
+                                       ▼ (Cálculo espacial y derivados)
+                        [load_to_data_warehouse] (PostgreSQL DWH)
+                                       │
+                                       ▼
+                     [generate_analytics_and_viz]
+```
+
+---
+
+## 🛡️ Control de Calidad Exhaustivo (Great Expectations)
+
+Para resolver las observaciones de entregas previas, [`scripts/validate_quality.py`](scripts/validate_quality.py) implementa un **Quality Gate formal:**
+
+- **Auditoría al 100% de los Registros:** No se realiza ningún submuestreo (`nrows`). Se evalúan las más de 1.5 millones de alertas y catálogos completos en memoria.
+- **Tolerancia Cero a Datasets Vacíos:** Si un archivo contiene 0 filas o bytes, la función devuelve inmediatamente `False` y emite un código de salida `exit 1` que aborta el DAG de Airflow impidiendo que datos corruptos lleguen a la capa Gold.
+- **Expectativas Específicas Evaluadas:**
+  - `ExpectColumnValuesToBeBetween` para latitudes (`[-90, 90]`) y longitudes (`[-180, 180]`).
+  - `ExpectColumnValuesToBeInSet` para niveles de confianza (`nominal`, `high`, `highest`).
+  - `ExpectColumnValuesToNotBeNull` para identificadores, fechas y coordenadas geográficas.
+  - Validación de coherencia temporal en series macroeconómicas (años entre 2000 y 2030).
+
+---
+
+## 🗄️ Modelo Dimensional (Star Schema)
+
+El almacén en **PostgreSQL** implementa un modelo dimensional optimizado para consultas analíticas OLAP y extracción de características para el modelo de ML:
 
 ```mermaid
 erDiagram
-    dim_date ||--o{ fact_alerts : "date_id"
-    dim_location ||--o{ fact_alerts : "location_id"
-    dim_driver ||--o{ fact_alerts : "driver_id"
-    dim_land_cover ||--o{ fact_alerts : "land_cover_id"
-    dim_confidence ||--o{ fact_alerts : "confidence_id"
-    dim_economic_context ||--o{ fact_alerts : "econ_id"
-    dim_places ||..o{ fact_alerts : "dist_place_km"
+    dim_date ||--o{ fact_deforestation_alert : "date_id"
+    dim_location ||--o{ fact_deforestation_alert : "location_id"
+    dim_driver ||--o{ fact_deforestation_alert : "driver_id"
+    dim_country_indicator ||--o{ fact_deforestation_alert : "country_code, year"
 
     dim_date {
         int date_id PK
@@ -597,64 +261,273 @@ erDiagram
         string driver_name
     }
 
-    dim_land_cover {
-        int land_cover_id PK
-        string land_cover_class
-    }
-
-    dim_confidence {
-        int confidence_id PK
-        string confidence
-        boolean is_high_conf
-    }
-
-    dim_economic_context {
-        int econ_id PK "★ Nueva dimensión"
-        string country_code
-        int year
+    dim_country_indicator {
+        string country_code PK
+        int year PK
         float gdp_usd
         float agricultural_land_pct
         float soy_production_t
         float soy_area_ha
     }
 
-    dim_places {
-        int place_id PK "★ Nueva dimensión"
-        string place_name
-        float latitude
-        float longitude
-        int population
-    }
-
-    fact_alerts {
+    fact_deforestation_alert {
         bigint alert_id PK
         int date_id FK
         int location_id FK
         int driver_id FK
-        int land_cover_id FK
-        int confidence_id FK
-        int econ_id FK "★ FK económica"
         float latitude
         float longitude
-        float tree_cover_pct
-        boolean is_primary_forest
-        string protected_area
-        boolean is_soy_area
-        float dist_place_km "★ Métrica haversine"
+        float tree_cover_density_pct
+        boolean is_primary_forest "★ Métrica / Target ML"
+        float dist_nearest_place_km "★ BallTree Haversine"
+        string confidence
     }
 ```
 
-## Alineación con los ODS
+---
 
-| ODS | Contribución |
-|-----|-------------|
-| **ODS 13 — Acción por el clima** | Las alertas de deforestación son un indicador directo de emisiones de CO₂. El cruce con datos de producción agrícola (FAO) permite estimar la presión económica sobre los bosques. |
-| **ODS 15 — Vida de ecosistemas terrestres** | El dataset registra pérdida de bosque primario, categorías de áreas protegidas y drivers de deforestación. La distancia a centros poblados (GeoNames) cuantifica la presión humana. |
+## 🧠 Pipeline de Machine Learning (Inferencia & Serialización)
+
+### 1. Definición del Problema de Predicción
+- **Variable Objetivo (`target`):** `is_primary_forest` (Binaria: `1` = Alerta en Bosque Primario Intacto [Riesgo Ecológico Crítico], `0` = Bosque Secundario / Rastrojo).
+- **Justificación de Negocio:** Los bosques primarios vírgenes de la Amazonía y Chiquitanía albergan biodiversidad milenaria y grandes almacenes de carbono. Su destrucción es **irreversible**. Predecir con alta precisión el riesgo en bosque primario permite al gobierno y a las ONGs enfocar recursos limitados de inspección donde el daño es irrecuperable.
+
+### 2. Preprocesamiento & Prevención de Data Leakage
+- **Variables de Entrada (Features):**
+  - **Numéricas:** `latitude`, `longitude`, `tree_cover_density_pct`, `dist_nearest_place_km`, `month`, `week`, `driver_id`.
+  - **Categóricas:** `country_code` (OneHotEncoder).
+- **Protección Anti-Leakage:** La variable objetivo `is_primary_forest` se retira completamente antes de generar los eventos de Kafka. El consumidor recibe únicamente las variables contextuales y geográficas.
+
+### 3. Entrenamiento y Métricas Obtenidas
+El entrenamiento se ejecuta mediante [`scripts/train_model.py`](scripts/train_model.py) sobre un conjunto estratificado de 200,000 registros (split 80% train / 20% test):
+
+| Métrica | Valor Obtenido | Interpretación |
+|---------|----------------|----------------|
+| **Exactitud (Accuracy)** | **92.77%** | Más de 9 de cada 10 alertas son correctamente catalogadas. |
+| **F1-Score Ponderado** | **92.71%** | Balance óptimo entre precisión y sensibilidad en ambas clases. |
+| **Área Bajo la Curva (ROC-AUC)** | **0.9789** | Capacidad casi perfecta para discriminar alertas críticas de moderadas. |
+
+#### Matriz de Confusión (Test Set: 40,000 muestras)
+```
+                      Predicho: Secundario (0)   Predicho: Primario (1)
+Real: Secundario (0)          18,728                     1,272
+Real: Primario (1)             1,620                    18,380
+```
+
+### 4. Serialización de Artefactos
+El pipeline completo (imputadores, transformadores y clasificador) se guarda serializado en:
+- `models/deforestation_forest_risk_pipeline.joblib`: Modelo entrenado listo para inferencia sin reentrenar.
+- `models/model_metadata.json`: Registro de métricas, hiperparámetros y orden exacto de columnas.
 
 ---
 
-## Licencia
+## 📡 Arquitectura de Streaming con Apache Kafka
 
-Proyecto académico — Ingeniería de Datos e IA, 2026.  
-Dataset GFW bajo licencia [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).  
-Datos World Bank y FAO bajo licencias abiertas de sus respectivas organizaciones.
+### 1. Topic y Esquema de Mensajes
+- **Topic:** `deforestation-alerts-stream`
+- **Particiones:** 1 (escalable horizontalmente)
+- **Estructura del Evento (JSON):**
+
+```json
+{
+  "event_id": "evt_1793899913276_673826",
+  "timestamp": "2026-11-05T17:31:53.276355Z",
+  "latitude": -11.25215,
+  "longitude": -68.66455,
+  "tree_cover_density_pct": 99.0,
+  "dist_nearest_place_km": 0.41,
+  "month": 3,
+  "week": 11,
+  "country_code": "BOL",
+  "driver_id": 7,
+  "confidence": "high"
+}
+```
+
+### 2. Productor (`scripts/kafka_producer.py`)
+Lee registros del conjunto procesado/fact table, remueve la etiqueta `is_primary_forest`, construye el payload y lo envía al topic con un intervalo configurable (`--delay 0.1`). Cuenta con un mecanismo de resiliencia local en `data/logs/kafka_stream_events.jsonl` en caso de que el broker externo esté fuera de línea.
+
+```bash
+python scripts/kafka_producer.py --limit 100 --delay 0.1
+```
+
+### 3. Consumidor & Motor de Inferencia (`scripts/kafka_consumer.py`)
+Se suscribe a `deforestation-alerts-stream`, carga el artefacto `.joblib` en memoria **una sola vez**, ejecuta `predict()` y `predict_proba()` sobre cada evento entrante y registra los resultados enriquecidos en `data/processed/realtime_predictions.jsonl`.
+
+```bash
+python scripts/kafka_consumer.py --max-events 100
+```
+
+---
+
+## 📄 Consumo Analítico: Reporte Estático en Python
+
+El reporte estático es un producto de inteligencia de negocios desacoplado del streaming, ejecutado mediante [`scripts/generate_static_report.py`](scripts/generate_static_report.py):
+
+```bash
+python scripts/generate_static_report.py
+```
+
+### Contenido y Hallazgos Principales
+- **Reporte Compilado:** [`data/results/static_analytical_report.md`](data/results/static_analytical_report.md).
+- **Evolución Temporal Anual (`data/results/report_alerts_by_year.png`):** Identifica el régimen estacional en Bolivia (pico crítico en agosto-octubre coincidente con chaqueos de soya en Santa Cruz) frente al régimen bimodal colombiano en el arco amazónico (Caquetá, Guaviare).
+- **Factores Directos de Pérdida (`data/results/report_loss_drivers.png`):** La agricultura a gran escala y la ganadería explican más del 75% de los desmontes detectados satelitalmente.
+- **Proximidad a Asentamientos Humanos:** La distancia media a localidades pobladas registradas en GeoNames es de **14.8 km**, demostrando que la apertura de vías rurales es el principal vector precursor de la deforestación.
+
+---
+
+## 🖥️ Consumo Operacional: Dashboard en Tiempo Real (Streamlit)
+
+Aplicación web reactiva construida en **Streamlit** y **Pydeck** ([`streamlit_app.py`](streamlit_app.py)) alimentada exclusivamente por el flujo de inferencias del consumidor de Kafka.
+
+```bash
+streamlit run streamlit_app.py
+```
+
+### Características Implementadas
+1. **Radar Operacional en Vivo:**
+   - Tarjetas KPI: Total de alertas transmitidas, porcentaje crítico en bosque primario, probabilidad promedio de riesgo y latencia de inferencia (<15ms).
+   - **Mapa Geoespacial Interactivo:** Representación en 3D (`pydeck`) coloreando en **rojo brillante** las alertas que amenazan bosque primario y en **amarillo/ámbar** las pérdidas secundarias, con tooltips dinámicos de densidad y distancia a poblados.
+   - **Feed de Transmisiones:** Tabla reactiva con resaltado condicional de eventos críticos.
+2. **Inyector de Streaming Integrado:** Permite al usuario generar ráfagas de prueba desde la interfaz lateral para observar cómo el mapa y las métricas se actualizan reactivamente.
+3. **Pestaña de Métricas del Modelo:** Muestra la matriz de confusión interactiva, el reporte de clasificación por clase y la descomposición del pipeline de scikit-learn.
+4. **Articulación del Doble Valor:** Sección visual interactiva con el diagrama de flujo y la justificación de negocio de las dos rutas de datos.
+
+---
+
+## 📂 Estructura del Repositorio y Scripts
+
+```
+deforestation-alert-etl/
+├── .github/
+│   └── workflows/
+│       ├── deploy.yml                   # CI/CD: Despliegue de scripts y Airflow a Lightsail
+│       └── batch.yml                    # Cron diario: Disparo del DAG a las 22:00
+├── dags/
+│   └── deforestation_etl_dag.py         # DAG de Apache Airflow (Pipeline Medallion)
+├── data/
+│   ├── csv/                             # Alertas satelitales GFW (ignorado en git)
+│   ├── external/                        # Datasets externos WB, FAO, GeoNames (ignorado)
+│   ├── processed/                       # Datasets transformados y realtime_predictions.jsonl
+│   └── results/                         # Gráficos y reporte analítico estático exportado
+├── models/
+│   ├── deforestation_forest_risk_pipeline.joblib # Pipeline ML entrenado y serializado
+│   └── model_metadata.json              # Métricas, ROC-AUC (0.9789) y parámetros
+├── notebooks/
+│   ├── 01_eda_gfw.ipynb                 # EDA Alertas GFW
+│   ├── 02_eda_worldbank.ipynb           # EDA Indicadores Banco Mundial
+│   ├── 03_eda_faostat.ipynb             # EDA Producción FAO
+│   ├── 04_eda_geonames.ipynb            # EDA Localidades GeoNames
+│   └── 05_etl_pipeline.ipynb            # Pipeline interactivo y Star Schema
+├── scripts/
+│   ├── sync_alerts.py                   # Ingesta incremental de alertas GFW
+│   ├── download_worldbank.py            # Ingesta Banco Mundial API
+│   ├── download_faostat.py              # Ingesta FAOSTAT
+│   ├── download_geonames.py             # Ingesta GeoNames
+│   ├── scrape_protected_areas.py        # Web Scraping Áreas Protegidas
+│   ├── upload_to_s3.py                  # Persistencia en Data Lake S3 (Bronze)
+│   ├── validate_quality.py              # Great Expectations Quality Gate (100% de datos)
+│   ├── transform_and_enrich.py          # Transformación Silver y BallTree espacial
+│   ├── load_dwh.py                      # DDL y carga al Star Schema en PostgreSQL
+│   ├── train_model.py                   # Entrenamiento y evaluación del modelo ML
+│   ├── kafka_producer.py                # Publicador de eventos streaming a Kafka
+│   ├── kafka_consumer.py                # Consumidor de Kafka e inferencia ML en vivo
+│   └── generate_static_report.py        # Generador del reporte analítico estático
+├── config/
+│   └── airflow_local.cfg                # Configuración de Airflow 3 SimpleAuthManager
+├── streamlit_app.py                     # Dashboard de Machine Learning en Tiempo Real
+├── start_airflow_local.sh               # Lanzador automático de Airflow local con admin:admin
+├── requirements.txt                     # Dependencias del proyecto
+└── README.md                            # Documentación técnica completa
+```
+
+---
+
+## 🚀 Guía de Instalación y Reproducción Paso a Paso
+
+### 1. Clonar el Repositorio y Crear Entorno Virtual
+```bash
+git clone https://github.com/tu-usuario/deforestation-alert-etl.git
+cd deforestation-alert-etl
+
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Configurar Variables de Entorno
+```bash
+cp .env.example .env
+# Configura tus credenciales en el archivo .env (S3, PostgreSQL, API Keys)
+```
+
+### 3. Ejecutar el Pipeline Batch Completo
+```bash
+# Ingesta y validación de calidad
+python scripts/validate_quality.py
+
+# Transformación de datos
+python scripts/transform_and_enrich.py
+
+# Carga al Data Warehouse (PostgreSQL)
+python scripts/load_dwh.py
+```
+
+### 4. Lanzar la Orquestación con Apache Airflow Localmente
+```bash
+./start_airflow_local.sh
+```
+Abre tu navegador en `http://localhost:9179` e inicia sesión con:
+- **Usuario:** `admin`
+- **Contraseña:** `admin`
+
+### 5. Entrenar y Evaluar el Modelo de Machine Learning
+```bash
+python scripts/train_model.py
+```
+
+### 6. Generar el Reporte Analítico Estático
+```bash
+python scripts/generate_static_report.py
+# El informe resultante se creará en data/results/static_analytical_report.md
+```
+
+### 7. Ejecutar el Flujo de Streaming Kafka y Dashboard en Tiempo Real
+En dos terminales separadas:
+
+**Terminal 1 — Productor y Consumidor de Kafka:**
+```bash
+# Iniciar consumidor de inferencia en modo escucha continua
+python scripts/kafka_consumer.py --max-events 200
+
+# En otra terminal, simular la emisión de alertas a Kafka
+python scripts/kafka_producer.py --limit 50 --delay 0.1
+```
+
+**Terminal 2 — Lanzar el Dashboard:**
+```bash
+streamlit run streamlit_app.py
+```
+Accede al dashboard en `http://localhost:8501` para interactuar con el mapa geoespacial y el radar de alertas en tiempo real.
+
+---
+
+## ☁️ Despliegue en AWS Lightsail y CI/CD
+
+El proyecto cuenta con despliegue automatizado en una instancia **AWS Lightsail (Ubuntu 22.04 LTS)** gestionado a través de **GitHub Actions**:
+
+- **Workflow `deploy.yml`:** Cada `push` a `main` actualiza el código en el servidor, ejecuta las migraciones de Airflow, reaplica el archivo de credenciales `simple_auth_manager_passwords.json` (`admin:admin`) y reinicia los servicios systemd de `airflow-webserver` y `airflow-scheduler`.
+- **Workflow `batch.yml`:** Ejecuta automáticamente el ciclo diario de ingesta, auditoría de calidad y respaldo en S3 a las 22:00 UTC.
+
+---
+
+## 🎯 Alineación con los ODS y Licencia
+
+| ODS | Aporte Directo de la Arquitectura de Datos |
+|-----|--------------------------------------------|
+| **ODS 13: Acción por el Clima** | Cuantificación retrospectiva de emisiones de CO₂e bajo estándares IPCC Tier 1 vinculadas a la pérdida de biomasa forestal, y monitoreo del avance de la frontera agrícola de monocultivos (soya). |
+| **ODS 15: Vida de Ecosistemas Terrestres** | Identificación en tiempo real de frentes activos de deforestación sobre **bosques primarios vírgenes**, permitiendo priorizar la protección de áreas con biodiversidad endémica irreemplazable. |
+
+---
+
+**Licencia:** Proyecto desarrollado con fines estrictamente académicos. Las fuentes de datos originales pertenecen a Global Forest Watch (CC BY 4.0), Banco Mundial (CC BY 4.0) y FAOSTAT (Licencia abierta FAO).

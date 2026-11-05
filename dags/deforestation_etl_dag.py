@@ -26,9 +26,9 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from airflow import DAG
 try:
-    from airflow.operators.bash import BashOperator
-except ImportError:
     from airflow.providers.standard.operators.bash import BashOperator
+except ImportError:
+    from airflow.operators.bash import BashOperator
 
 # Detección dinámica de ruta del proyecto: funciona en local (Mac) y en Lightsail
 PROJECT_DIR = Path(__file__).resolve().parent.parent

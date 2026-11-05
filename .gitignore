@@ -32,8 +32,11 @@ build/
 *.parquet
 *.zip
 *.tar.gz
+*.pkl
+*.pickle
 data/csv/
 data/external/
+data/processed/*.pkl
 data/logs/
 logs/
 
