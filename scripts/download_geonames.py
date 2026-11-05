@@ -13,6 +13,7 @@ Salida: data/external/geonames/geonames_places.csv
 """
 
 import csv
+import sys
 import io
 import zipfile
 import requests
@@ -69,6 +70,7 @@ def main():
     out_path = OUT_DIR / "geonames_places.csv"
     fieldnames = KEEP_COLS + ["country_iso3"]
 
+    total_written = 0
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -76,7 +78,8 @@ def main():
             try:
                 download_country(iso2, iso3, writer)
             except Exception as e:
-                print(f"ERROR {iso3}: {e}")
+                print(f"❌ ERROR crítico descargando {iso3}: {e}")
+                sys.exit(1)
 
     print(f"\n✅ Guardado en {out_path}")
 

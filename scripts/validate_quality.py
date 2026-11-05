@@ -2,11 +2,12 @@
 """
 validate_quality.py — Validación automatizada de calidad de datos con Great Expectations.
 
-Requisito de la Segunda Entrega (Rubro: Data quality with Great Expectations):
-  - Evalúa la calidad de los datos crudos extraídos de las 4 fuentes antes de cargarlos a PostgreSQL.
-  - Define suites de validación (Expectation Suites) para GFW, World Bank, GeoNames y Áreas Protegidas.
-  - Registra el informe en data/logs/great_expectations.log.
-  - Solo permite continuar el pipeline en Airflow si todas las validaciones críticas son exitosas (exit code 0).
+Requisitos de Calidad de Datos (Quality Gate):
+  - Evalúa la calidad de los datasets crudos extraídos de las 4 fuentes (GFW, World Bank, FAOSTAT, GeoNames, Áreas Protegidas).
+  - VALIDA LA TOTALIDAD DE LOS DATOS (sin submuestreo artificial).
+  - RECHAZA DATASETS VACÍOS: Un dataset de 0 filas o inexistente marca FALLA CRÍTICA (exit 1).
+  - Bloquea la carga al Data Warehouse si alguna expectativa no se cumple (exit code 1).
+  - Registra el reporte en data/logs/great_expectations.log.
 """
 
 import sys
@@ -38,16 +39,21 @@ def log(msg: str):
 
 
 def validate_dataframe(context, df: pd.DataFrame, suite_name: str, expectations_list: list) -> bool:
-    """Ejecuta una lista de expectativas de Great Expectations sobre un DataFrame de Pandas."""
-    if df.empty:
-        log(f"  ⚠️  Dataset para {suite_name} está vacío. Validación omitida.")
-        return True
+    """
+    Ejecuta una lista de expectativas de Great Expectations sobre un DataFrame de Pandas.
+    Si el DataFrame está vacío, la validación FALLA inmediatamente (retorna False).
+    """
+    if df is None or df.empty or len(df) == 0:
+        log(f"  ❌ Suite '{suite_name}': DATASET VACÍO (0 filas). Calidad RECHAZADA.")
+        return False
 
     ds = context.data_sources.add_pandas(f"source_{suite_name}")
     asset = ds.add_dataframe_asset(f"asset_{suite_name}")
     batch_def = asset.add_batch_definition_whole_dataframe(f"batch_{suite_name}")
     
     suite = context.suites.add(gx.ExpectationSuite(name=f"suite_{suite_name}"))
+    # Validación universal: el dataset debe tener al menos 1 fila
+    suite.add_expectation(gx.expectations.ExpectTableRowCountToBeBetween(min_value=1))
     for exp in expectations_list:
         suite.add_expectation(exp)
         
@@ -56,32 +62,34 @@ def validate_dataframe(context, df: pd.DataFrame, suite_name: str, expectations_
     )
     result = val_def.run(batch_parameters={"dataframe": df})
     
-    log(f"  ▶ Suite '{suite_name}': {'PASÓ ✅' if result.success else 'FALLÓ ❌'}")
-    return result.success
+    status = "PASÓ ✅" if result.success else "FALLÓ ❌"
+    log(f"  ▶ Suite '{suite_name}' ({len(df):,} filas): {status}")
+    return bool(result.success)
 
 
 def main():
-    log("=" * 60)
-    log("🚀 INICIANDO SUITE DE VALIDACIÓN CON GREAT EXPECTATIONS")
-    log(f"   GX Version: {gx.__version__}")
-    log("=" * 60)
+    log("=" * 65)
+    log("🚀 INICIANDO SUITE DE VALIDACIÓN CON GREAT EXPECTATIONS (QUALITY GATE)")
+    log(f"   GX Version: {gx.__version__} | Modo: Dataset Completo (100% de datos)")
+    log("=" * 65)
 
     context = gx.get_context(mode="ephemeral")
     all_passed = True
+    validated_sources = 0
 
-    # ── 1. Validación de Alertas de Deforestación GFW ──────────────────────────
-    # Limpiar posibles archivos temporales de 0 bytes
+    # ── 1. Validación de Alertas de Deforestación GFW (Dataset Completo) ───────
+    # Limpiar posibles archivos temporales vacíos
     for p in (DATA_DIR / "csv").glob("*alerts*.csv"):
         if p.stat().st_size == 0:
             try:
                 p.unlink()
-                log(f"  🗑️ Archivo vacío de 0 bytes eliminado: {p.name}")
+                log(f"  🗑️ Archivo temporal de 0 bytes eliminado: {p.name}")
             except OSError:
                 pass
 
     gfw_files = [p for p in (DATA_DIR / "csv").glob("*alerts*.csv") if p.stat().st_size > 0]
     if not gfw_files:
-        log("⚠️ No se encontraron archivos GFW válidos en data/csv. Descargando base desde proxy S3...")
+        log("⚠️ No se encontraron archivos GFW locales. Intentando sincronizar desde Data Lake / Proxy...")
         try:
             import subprocess
             fetch_script = PROJECT_ROOT / "scripts" / "fetch_from_proxy.py"
@@ -91,15 +99,20 @@ def main():
         except Exception as e:
             log(f"⚠️ Error al obtener CSVs base desde el proxy: {e}")
 
-    if gfw_files:
+    if not gfw_files:
+        log("❌ RECHAZADO: No hay archivos GFW en data/csv. Pipeline detenido.")
+        all_passed = False
+    else:
         for gfw_path in gfw_files:
-            log(f"Validando GFW: {gfw_path.name}")
+            log(f"Validando GFW completo: {gfw_path.name}")
             try:
-                df_gfw = pd.read_csv(gfw_path, nrows=10000)  # Validar muestra representativa de 10k filas
-            except pd.errors.EmptyDataError:
-                log(f"  ⚠️ Archivo {gfw_path.name} no contiene columnas ni datos. Omitiendo.")
+                # Validar el 100% del dataset sin recortes ni muestreos
+                df_gfw = pd.read_csv(gfw_path)
+            except Exception as e:
+                log(f"  ❌ Error al leer {gfw_path.name}: {e}")
+                all_passed = False
                 continue
-            
+
             exp_gfw = [
                 gx.expectations.ExpectColumnValuesToNotBeNull(column="latitude"),
                 gx.expectations.ExpectColumnValuesToNotBeNull(column="longitude"),
@@ -112,12 +125,14 @@ def main():
             suite_id = f"gfw_{gfw_path.stem}"
             if not validate_dataframe(context, df_gfw, suite_id, exp_gfw):
                 all_passed = False
-    else:
-        log("⚠️ No se encontraron archivos GFW en data/csv para validar.")
+            validated_sources += 1
 
     # ── 2. Validación de World Bank ───────────────────────────────────────────
     wb_path = DATA_DIR / "external" / "worldbank" / "worldbank_indicators.csv"
-    if wb_path.exists() and wb_path.stat().st_size > 0:
+    if not wb_path.exists() or wb_path.stat().st_size == 0:
+        log(f"❌ RECHAZADO: {wb_path.name} no existe o está vacío.")
+        all_passed = False
+    else:
         log(f"Validando World Bank: {wb_path.name}")
         try:
             df_wb = pd.read_csv(wb_path)
@@ -129,15 +144,43 @@ def main():
             ]
             if not validate_dataframe(context, df_wb, "worldbank", exp_wb):
                 all_passed = False
-        except pd.errors.EmptyDataError:
-            log(f"  ⚠️ Archivo {wb_path.name} está vacío. Omitiendo.")
+            validated_sources += 1
+        except Exception as e:
+            log(f"  ❌ Error leyendo {wb_path.name}: {e}")
+            all_passed = False
 
-    # ── 3. Validación de GeoNames ─────────────────────────────────────────────
-    geo_path = DATA_DIR / "external" / "geonames" / "geonames_places.csv"
-    if geo_path.exists() and geo_path.stat().st_size > 0:
-        log(f"Validando GeoNames: {geo_path.name}")
+    # ── 3. Validación de FAOSTAT ──────────────────────────────────────────────
+    fao_path = DATA_DIR / "external" / "faostat" / "faostat_production.csv"
+    if not fao_path.exists() or fao_path.stat().st_size == 0:
+        log(f"❌ RECHAZADO: {fao_path.name} no existe o está vacío.")
+        all_passed = False
+    else:
+        log(f"Validando FAOSTAT: {fao_path.name}")
         try:
-            df_geo = pd.read_csv(geo_path, nrows=5000)
+            df_fao = pd.read_csv(fao_path)
+            exp_fao = [
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="country_code"),
+                gx.expectations.ExpectColumnValuesToBeInSet(column="country_code", value_set=["BOL", "COL"]),
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="item_name"),
+                gx.expectations.ExpectColumnValuesToNotBeNull(column="element"),
+                gx.expectations.ExpectColumnValuesToBeBetween(column="year", min_value=2000, max_value=2030),
+            ]
+            if not validate_dataframe(context, df_fao, "faostat", exp_fao):
+                all_passed = False
+            validated_sources += 1
+        except Exception as e:
+            log(f"  ❌ Error leyendo {fao_path.name}: {e}")
+            all_passed = False
+
+    # ── 4. Validación de GeoNames (Dataset Completo) ───────────────────────────
+    geo_path = DATA_DIR / "external" / "geonames" / "geonames_places.csv"
+    if not geo_path.exists() or geo_path.stat().st_size == 0:
+        log(f"❌ RECHAZADO: {geo_path.name} no existe o está vacío.")
+        all_passed = False
+    else:
+        log(f"Validando GeoNames completo: {geo_path.name}")
+        try:
+            df_geo = pd.read_csv(geo_path)
             exp_geo = [
                 gx.expectations.ExpectColumnValuesToNotBeNull(column="geonameid"),
                 gx.expectations.ExpectColumnValuesToNotBeNull(column="latitude"),
@@ -147,12 +190,17 @@ def main():
             ]
             if not validate_dataframe(context, df_geo, "geonames", exp_geo):
                 all_passed = False
-        except pd.errors.EmptyDataError:
-            log(f"  ⚠️ Archivo {geo_path.name} está vacío. Omitiendo.")
+            validated_sources += 1
+        except Exception as e:
+            log(f"  ❌ Error leyendo {geo_path.name}: {e}")
+            all_passed = False
 
-    # ── 4. Validación de Áreas Protegidas ─────────────────────────────────────
+    # ── 5. Validación de Áreas Protegidas ─────────────────────────────────────
     pa_path = DATA_DIR / "external" / "protected_areas" / "protected_areas.csv"
-    if pa_path.exists() and pa_path.stat().st_size > 0:
+    if not pa_path.exists() or pa_path.stat().st_size == 0:
+        log(f"❌ RECHAZADO: {pa_path.name} no existe o está vacío.")
+        all_passed = False
+    else:
         log(f"Validando Áreas Protegidas: {pa_path.name}")
         try:
             df_pa = pd.read_csv(pa_path)
@@ -163,20 +211,22 @@ def main():
             ]
             if not validate_dataframe(context, df_pa, "protected_areas", exp_pa):
                 all_passed = False
-        except pd.errors.EmptyDataError:
-            log(f"  ⚠️ Archivo {pa_path.name} está vacío. Omitiendo.")
+            validated_sources += 1
+        except Exception as e:
+            log(f"  ❌ Error leyendo {pa_path.name}: {e}")
+            all_passed = False
 
-    log("=" * 60)
-    if all_passed:
-        log("✅ TODAS LAS VALIDACIONES DE GREAT EXPECTATIONS FUERON EXITOSAS.")
-        log("   Los datos cumplen con los umbrales de calidad para ser cargados al Data Warehouse.")
+    log("=" * 65)
+    if all_passed and validated_sources >= 5:
+        log(f"✅ TODAS LAS VALIDACIONES ({validated_sources} suites) FUERON EXITOSAS.")
+        log("   Los datos cumplen con las expectativas de completitud y calidad.")
+        log("   Quality Gate: APROBADO ➔ Autorizada la carga al Data Warehouse.")
         sys.exit(0)
     else:
-        log("❌ SE DETECTARON VIOLACIONES DE CALIDAD DE DATOS.")
-        log("   La carga a PostgreSQL ha sido bloqueada según la política de calidad.")
+        log("❌ SE DETECTARON VIOLACIONES CRÍTICAS DE CALIDAD O DATASETS VACÍOS/FALTANTES.")
+        log("   Quality Gate: RECHAZADO ➔ Bloqueando ejecución y abortando carga a PostgreSQL.")
         sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
-
