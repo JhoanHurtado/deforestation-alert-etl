@@ -225,9 +225,10 @@ def main():
     print(f"  dim_land_cover: {len(dim_land_cover):,} filas")
 
     # dim_confidence
+    conf_col = 'is_high_confidence' if 'is_high_confidence' in gfw.columns else 'is_high_conf'
     dim_confidence = (
-        gfw[['confidence', 'is_high_conf']].drop_duplicates()
-        .rename(columns={'is_high_conf': 'is_high_confidence'})
+        gfw[['confidence', conf_col]].drop_duplicates()
+        .rename(columns={conf_col: 'is_high_confidence'})
         .reset_index(drop=True)
     )
     dim_confidence.index.name = 'confidence_id'
